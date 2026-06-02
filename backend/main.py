@@ -5,6 +5,10 @@ import os
 from dotenv import load_dotenv
 
 from backend.api import api_router
+from backend.core.database import Base, engine
+
+# Automatically create DB schema on startup (especially useful for postgres container initialization)
+Base.metadata.create_all(bind=engine)
 
 load_dotenv()
 

@@ -24,16 +24,17 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+      - ./backend:/app/backend
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/datasetops
       - STORAGE_MODE=local
       - MOCK_LLM=true
-      - LOCAL_STORAGE_DIR=/app/storage
+      - LOCAL_STORAGE_DIR=/app/backend/storage
+      - PYTHONPATH=/app
     depends_on:
       db:
         condition: service_healthy
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
     build:
