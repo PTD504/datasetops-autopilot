@@ -1,34 +1,50 @@
-# Qwen Integration
+# Qwen Integration Guide
 
-DatasetOps Autopilot integrates seamlessly with Qwen Cloud via the OpenAI-compatible API to power its autonomous agents.
+DatasetOps Autopilot uses Alibaba Cloud's Qwen LLM family to automate data generation and evaluation pipelines.
 
-## Environments and Modes
+## Modes of Operation
 
-The application supports two operating modes for the LLM backend: **Mock Mode** and **Real Qwen Mode**.
+The system has three primary modes regarding LLM calls, configured via environment variables:
 
-### 1. Mock Mode
+1.  **Mock Mode (`MOCK_LLM=true`)**: The system does not make network calls. It uses deterministic responses defined in `backend/wrappers/qwen_client.py`. This is ideal for local testing, frontend development, and guaranteed demos.
+2.  **Real Qwen Mode (`MOCK_LLM=false`)**: The system uses the configured `QWEN_API_KEY` to make actual chat completion calls to Alibaba Cloud Model Studio.
+3.  **Fallback Mode (`ALLOW_LLM_FALLBACK=true` combined with `MOCK_LLM=false`)**: If an API error occurs during Real Qwen Mode (e.g., rate limits, network issues), the system will log a warning and fallback to the deterministic mock responses to prevent pipeline crashes. If strict real responses are required, set `ALLOW_LLM_FALLBACK=false` to enforce failure.
 
-Mock mode allows for rapid local development and deterministic demoing without consuming real API credits. This is the default configuration.
+## Required Environment Variables
 
-**To enable Mock Mode:**
-Set `MOCK_LLM=true` in your `.env` file. The application will use deterministic mock data based on prompt keywords, designed specifically for the Vietnamese ecommerce benchmark demo.
+For Real Qwen mode, set the following in your `.env`:
 
-### 2. Real Qwen Mode
+```env
+MOCK_LLM=false
+ALLOW_LLM_FALLBACK=false # or true depending on preference
+QWEN_API_KEY=your_qwen_api_key
+QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_MODEL=qwen-plus
+```
 
-Real Qwen Mode connects directly to the Qwen Cloud API for actual LLM generation and evaluation.
+## Verifying Integration
 
-**To enable Real Qwen Mode:**
-1. Set `MOCK_LLM=false` in your `.env` file.
-2. Provide your Qwen API credentials in the `.env` file:
-   - `QWEN_API_KEY=your_actual_api_key`
-   - `QWEN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1`
-   - `QWEN_MODEL=qwen-plus`
+### Health Check Endpoint
 
-### Fallback Configuration
+You can check your system's current connectivity to Qwen by hitting the backend API:
 
-By default, if the application is running in Real Qwen Mode but encounters an API error (e.g., network issue or rate limit), it will silently fall back to Mock Mode to keep the workflow running.
+`GET /api/health/qwen`
 
-For final testing to definitively prove real Qwen usage, you should disable this fallback.
+This endpoint returns a JSON payload detailing:
+*   Whether mock mode is active (`mock_mode`)
+*   Whether credentials are present (`credentials_configured`)
+*   The currently targeted model (`model`)
+*   Whether fallback is allowed (`fallback_allowed`)
+*   The success of a tiny ping to Qwen if in Real Mode (`test_call_success`)
 
-**To disable Mock Fallback:**
-Set `ALLOW_LLM_FALLBACK=false` in your `.env` file. With this set, if `MOCK_LLM=false` and a Qwen API call fails, the application will raise a clear exception and halt, ensuring that only real Qwen responses are used.
+### Monitoring the Logs
+
+The backend includes structured logging to confirm how calls are processed. Watch the backend terminal logs for messages such as:
+*   `Using MOCK Qwen Client for generate_json`
+*   `Using REAL Qwen Client (model: qwen-plus) for generate_json`
+*   `Falling back to MOCK Qwen Client due to API error (ALLOW_LLM_FALLBACK=true)`
+
+## Common Errors & Fixes
+
+*   **`Exception: Qwen API error and fallback disabled`**: The API call failed and `ALLOW_LLM_FALLBACK` is `false`. Check your `QWEN_API_KEY` and network connection, or set fallback to `true` if you wish to proceed with mock data.
+*   **Failed to parse JSON**: Sometimes Qwen returns plain text rather than structured JSON. The system attempts a 1-time automatic retry. If it fails again, it throws an error or triggers fallback based on your configuration.

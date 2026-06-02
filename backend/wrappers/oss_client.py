@@ -8,17 +8,25 @@ logger = logging.getLogger(__name__)
 
 class AlibabaOSSClient:
     def __init__(self):
-        self.use_local = settings.STORAGE_MODE == "local" or not settings.ALIBABA_CLOUD_ACCESS_KEY_ID
+        self.use_local = settings.STORAGE_MODE == "local"
 
-        if self.use_local:
-            self.local_dir = settings.LOCAL_STORAGE_DIR
-            os.makedirs(self.local_dir, exist_ok=True)
-            logger.info(f"Using Local Storage fallback at {self.local_dir}")
-        else:
+        if not self.use_local:
+            if not all([
+                settings.ALIBABA_CLOUD_ACCESS_KEY_ID,
+                settings.ALIBABA_CLOUD_ACCESS_KEY_SECRET,
+                settings.ALIBABA_CLOUD_OSS_ENDPOINT,
+                settings.ALIBABA_CLOUD_OSS_BUCKET
+            ]):
+                raise ValueError("STORAGE_MODE is set to 'oss' but required OSS credentials are missing. Set them or use STORAGE_MODE=local.")
+
             auth = oss2.Auth(settings.ALIBABA_CLOUD_ACCESS_KEY_ID, settings.ALIBABA_CLOUD_ACCESS_KEY_SECRET)
             self.bucket = oss2.Bucket(auth, settings.ALIBABA_CLOUD_OSS_ENDPOINT, settings.ALIBABA_CLOUD_OSS_BUCKET)
             self.endpoint_url = f"https://{settings.ALIBABA_CLOUD_OSS_BUCKET}.{settings.ALIBABA_CLOUD_OSS_ENDPOINT}"
             logger.info(f"Using Alibaba Cloud OSS: {settings.ALIBABA_CLOUD_OSS_BUCKET}")
+        else:
+            self.local_dir = settings.LOCAL_STORAGE_DIR
+            os.makedirs(self.local_dir, exist_ok=True)
+            logger.info(f"Using Local Storage at {self.local_dir}")
 
     def upload_file(self, object_name: str, file_path: str) -> str:
         """

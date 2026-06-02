@@ -16,7 +16,7 @@ class QwenClient:
             )
             self.model = settings.QWEN_MODEL
 
-    def generate_json(self, prompt: str, system_prompt: str = "You are a helpful assistant. Output JSON only.") -> Dict[Any, Any]:
+    def generate_json(self, prompt: str, system_prompt: str = "You are a helpful assistant. Output JSON only.", _retry_count: int = 0) -> Dict[Any, Any]:
         """
         Calls Qwen and expects a JSON response.
         """
@@ -24,6 +24,7 @@ class QwenClient:
             logger.info("Using MOCK Qwen Client for generate_json")
             return self._get_mock_response(prompt)
 
+        logger.info(f"Using REAL Qwen Client (model: {self.model}) for generate_json")
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -35,12 +36,24 @@ class QwenClient:
             )
 
             content = response.choices[0].message.content
-            return json.loads(content)
+            try:
+                if content is None:
+                    raise ValueError("Received empty content from Qwen.")
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"Qwen JSON decoding error: {e}. Content was: {content}")
+                if _retry_count < 1:
+                    logger.info("Retrying JSON generation due to parsing error...")
+                    return self.generate_json(prompt, system_prompt, _retry_count=_retry_count + 1)
+                raise Exception(f"Failed to parse JSON after retry: {e}") from e
 
         except Exception as e:
             logger.error(f"Qwen API error: {e}")
             if not settings.ALLOW_LLM_FALLBACK:
+                logger.error("ALLOW_LLM_FALLBACK is false. Raising error.")
                 raise Exception(f"Qwen API error and fallback disabled: {e}") from e
+
+            logger.warning("Falling back to MOCK Qwen Client due to API error (ALLOW_LLM_FALLBACK=true).")
             # Fallback to mock on error to keep workflow running if possible
             return self._get_mock_response(prompt)
 
