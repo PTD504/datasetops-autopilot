@@ -1,0 +1,38 @@
+# DatasetOps Autopilot — RAG Benchmark Builder
+
+**Track 4: Autopilot Agent** for the Qwen Cloud Global Hackathon.
+
+A Qwen-powered autonomous workflow agent that converts raw source documents plus an ambiguous benchmark request into a validated RAG evaluation benchmark package.
+
+## Core Features
+* Automated document chunking and parsing.
+* Autonomous agent workflow planning.
+* Sample generation, validation, and evaluation via Qwen Cloud.
+* Bounded repair loops for low-quality samples.
+* Human-in-the-loop plan and sample review.
+* Full integration with Alibaba Cloud OSS for artifact storage.
+
+## Architecture
+See `docs/architecture.md` for full details.
+
+## Tech Stack
+* **Frontend:** Next.js, TailwindCSS, TypeScript
+* **Backend:** FastAPI, PostgreSQL, SQLAlchemy
+* **AI:** Qwen Cloud / Alibaba Cloud Model Studio
+* **Storage:** Alibaba Cloud OSS (with local fallback)
+
+## Setup and Running
+
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Run with Docker Compose:
+   ```bash
+   docker compose up --build
+   ```
+
+3. Open `http://localhost:3000`
+
+See more details in `docs/deployment.md`.
