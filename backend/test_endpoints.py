@@ -26,9 +26,16 @@ def test_create_project():
     assert data["name"] == "Test Project"
     assert data["workflow_state"] == "CREATED"
     assert "id" in data
-    return data["id"]
 
-def test_get_project(project_id):
+def test_get_project():
+    response = client.post("/api/projects/", json={
+        "name": "Test Project Get",
+        "description": "A test project for get",
+        "benchmark_request": "Test request"
+    })
+    assert response.status_code == 200
+    project_id = response.json()["id"]
+
     response = client.get(f"/api/projects/{project_id}")
     assert response.status_code == 200
     data = response.json()
@@ -36,6 +43,6 @@ def test_get_project(project_id):
 
 if __name__ == "__main__":
     test_health()
-    pid = test_create_project()
-    test_get_project(pid)
+    test_create_project()
+    test_get_project()
     print("API Endpoints basic tests passed")

@@ -1,6 +1,6 @@
-# Vietnamese Ecommerce Refund Policy
+# Chính sách hoàn tiền của cửa hàng thương mại điện tử Việt Nam
 
-1. Customers can request a full refund within 14 days of receiving the item if it is defective.
-2. If the customer changes their mind, a 10% restocking fee applies, and shipping is not refunded.
-3. Refunds are processed to the original payment method within 5-7 business days.
-4. Items must be returned in their original packaging.
+1. Khách hàng có thể yêu cầu hoàn tiền toàn bộ trong vòng 14 ngày kể từ ngày nhận hàng nếu sản phẩm bị lỗi.
+2. Nếu khách hàng đổi ý, sẽ áp dụng phí hoàn trả 10%, và phí vận chuyển sẽ không được hoàn lại.
+3. Số tiền hoàn lại sẽ được xử lý vào phương thức thanh toán ban đầu trong vòng 5-7 ngày làm việc.
+4. Sản phẩm phải được trả lại trong bao bì gốc.

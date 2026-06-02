@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     STORAGE_MODE: str = "local"
     LOCAL_STORAGE_DIR: str = "backend/storage"
     MOCK_LLM: bool = True
+    ALLOW_LLM_FALLBACK: bool = True
 
     class Config:
         env_file = ".env"

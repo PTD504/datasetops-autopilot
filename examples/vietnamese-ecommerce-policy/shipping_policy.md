@@ -1,6 +1,6 @@
-# Vietnamese Ecommerce Shipping Policy
+# Chính sách vận chuyển của cửa hàng thương mại điện tử Việt Nam
 
-1. Standard shipping takes 3-5 business days within Vietnam.
-2. Express shipping takes 1-2 business days.
-3. Free shipping is available for orders over 500,000 VND.
-4. International shipping is currently not supported.
+1. Giao hàng tiêu chuẩn mất 3-5 ngày làm việc trong lãnh thổ Việt Nam.
+2. Giao hàng hỏa tốc mất 1-2 ngày làm việc.
+3. Miễn phí vận chuyển áp dụng cho các đơn hàng có giá trị trên 500.000 VNĐ.
+4. Hiện tại không hỗ trợ giao hàng quốc tế.
