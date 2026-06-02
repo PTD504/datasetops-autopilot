@@ -15,6 +15,10 @@ A Qwen-powered autonomous workflow agent that converts raw source documents plus
 ## Architecture
 See `docs/architecture.md` for full details.
 
+## Documentation
+* [Demo Script](docs/demo-script.md) - A <3 minute guide to demoing the MVP.
+* [Qwen Integration](docs/qwen-integration.md) - Details on mock mode, real Qwen mode, and the fallback config.
+
 ## Tech Stack
 * **Frontend:** Next.js, TailwindCSS, TypeScript
 * **Backend:** FastAPI, PostgreSQL, SQLAlchemy

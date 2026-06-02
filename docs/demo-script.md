@@ -1,13 +1,23 @@
-# Demo Script (Under 3 mins)
+# DatasetOps Autopilot - Demo Script (< 3 min)
 
-1. Open the UI at `http://localhost:3000`.
-2. Click **Start New Benchmark Project**.
-3. Name it "Vietnamese Ecommerce", copy the text from `examples/vietnamese-ecommerce-policy/benchmark_request.txt`, and pretend to upload the markdown files from that same folder.
-4. Click **Start Autopilot Workflow**.
-5. Observe the status page update to "PLANNING" and then "WAITING_FOR_PLAN_APPROVAL".
-6. Click **Review Benchmark Plan**. See the AI-generated plan.
-7. Click **Approve Plan**.
-8. Observe status move to "GENERATING" and "EVALUATING".
-9. Click **Review Generated Samples**. See the table of generated questions. (Explain the hidden repair loop where weak samples were automatically fixed).
-10. Click **Download Export Package**.
-11. Show that the backend successfully generated the `export.zip` and (if configured) pushed it to Alibaba Cloud OSS.
+1. **Create Project**: Start by creating a new project. Use a descriptive name like "Vietnamese Ecommerce RAG Benchmark". Enter the following benchmark request:
+   > "Build a Vietnamese RAG benchmark to evaluate whether a customer support chatbot can answer refund, shipping, warranty, cancellation, and payment questions."
+
+2. **Upload Docs**: Navigate to your newly created project and upload the Vietnamese ecommerce policy documents provided in `examples/vietnamese-ecommerce-policy/` (refund, shipping, warranty, order cancellation, and payment).
+
+3. **Start Workflow**: Click the "Start Workflow" button to kick off the autonomous pipeline. The agent will begin by parsing and chunking the documents.
+
+4. **Show Source Understanding**: Briefly demonstrate the source understanding output, noting how the agent extracted the key categories and summarized the policies.
+
+5. **Approve Plan**: Review the generated benchmark plan. The plan should accurately reflect a 30-sample Vietnamese benchmark across the requested categories. Click "Approve Plan".
+
+6. **Generate & Evaluate**: Wait a moment while the generator and evaluator agents create and score samples. Show that samples include various difficulties and pass/repair/human review flags.
+
+7. **Review Uncertain Sample**: Identify at least one sample flagged for "Human Review" (e.g., questions related to shipping to Cambodia). Show the interface where a human could approve or reject the sample based on the evaluator's feedback.
+
+8. **Export ZIP**: Once all samples are generated and processed, click the "Export" button to generate the final artifacts.
+
+9. **Show Generated Files**: Download and extract the `export.zip` file. Show the contents:
+   - `rag_eval.jsonl` and `answer_key.jsonl` containing the samples.
+   - `dataset_card.md` summarizing the benchmark intent, sample counts, and categories.
+   - `quality_report.md` detailing the number of passed/repaired/rejected samples and overall mock metrics.
