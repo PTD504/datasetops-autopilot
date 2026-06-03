@@ -155,6 +155,44 @@ def get_project_status(project_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Project not found")
     return {"workflow_state": project.workflow_state}
 
+@router.get("/{project_id}/usage")
+def get_project_usage(project_id: str, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    from backend.services.llm_budget import LLMBudgetGuard
+    from backend.core.config import settings
+
+    guard = LLMBudgetGuard(db, project_id)
+    summary = guard.get_summary()
+    policy = guard.policy
+
+    budget_status = "ok"
+    if guard.enabled and settings.RUN_MODE != "mock":
+        if summary.calls_used >= policy.max_calls or summary.total_tokens_used >= policy.max_total_tokens or summary.estimated_cost_used >= policy.max_cost_usd:
+            budget_status = "exceeded"
+
+    if project.workflow_state in ["CANCEL_REQUESTED", "CANCELLED"]:
+        budget_status = "stopped"
+
+    return {
+        "llm_mode": settings.RUN_MODE,
+        "guardrails_enabled": guard.enabled,
+        "calls_used": summary.calls_used,
+        "max_calls": policy.max_calls,
+        "input_tokens_used": summary.input_tokens_used,
+        "max_input_tokens": policy.max_input_tokens,
+        "output_tokens_used": summary.output_tokens_used,
+        "max_output_tokens": policy.max_output_tokens,
+        "total_tokens_used": summary.total_tokens_used,
+        "max_total_tokens": policy.max_total_tokens,
+        "estimated_cost_used": summary.estimated_cost_used,
+        "max_estimated_cost": policy.max_cost_usd,
+        "budget_status": budget_status,
+        "cancel_requested": project.workflow_state in ["CANCEL_REQUESTED", "CANCELLED"]
+    }
+
 @router.get("/{project_id}/plan")
 def get_plan(project_id: str, db: Session = Depends(get_db)):
     plan = db.query(BenchmarkPlan).filter(BenchmarkPlan.project_id == project_id).first()

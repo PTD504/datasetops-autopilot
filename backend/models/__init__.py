@@ -5,3 +5,4 @@ from .plan import BenchmarkPlan
 from .sample import Sample, Evaluation, ReviewDecision
 from .export import Export
 from .trace import Trace
+from .usage import LLMUsageRecord
