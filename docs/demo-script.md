@@ -21,3 +21,15 @@
    - `rag_eval.jsonl` and `answer_key.jsonl` containing the samples.
    - `dataset_card.md` summarizing the benchmark intent, sample counts, and categories.
    - `quality_report.md` detailing the number of passed/repaired/rejected samples and overall mock metrics.
+
+10. **Alibaba Proof**: Briefly mention that a separate recording provides proof of Alibaba ECS deployment and native Qwen/OSS API usage.
+
+## Track 4 Judging Criteria Covered
+
+Ensure the demo implicitly highlights these core Track 4 elements:
+
+*   **Ambiguous Input Handling:** The system converts a vague user request into a structured benchmark plan.
+*   **External Tool Usage:** The agent uses tools to chunk, parse, evaluate, and directly call Alibaba Cloud OSS for artifact storage.
+*   **Human-in-the-Loop Checkpoints:** The user must explicitly approve the generated plan and manually review any uncertain generated samples.
+*   **Production-Readiness:** The pipeline handles long-running jobs gracefully, uses multi-stage Docker builds, and connects properly to Alibaba Cloud infrastructure.
+*   **Concrete Export Output:** The final deliverable is a tangible, ready-to-use RAG evaluation dataset zip package.

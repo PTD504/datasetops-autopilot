@@ -4,14 +4,14 @@ DatasetOps Autopilot uses Object Storage to persist uploaded source documents an
 
 This project is built to run cleanly with either local storage (for offline mock demos) or real Alibaba Cloud OSS (for hackathon proofs and production deployments).
 
-## Code Abstraction
+## Code Abstraction & Real API Usage
 
-The integration is centralized in `backend/wrappers/oss_client.py`. This wrapper exposes uniform methods:
-*   `upload_file`
-*   `download_file`
-*   `get_signed_url`
+To verify the integration with Alibaba Cloud services, reviewers can inspect the following wrapper files which encapsulate the official SDKs:
 
-Regardless of whether the underlying storage is your local filesystem (`backend/storage`) or an Alibaba OSS bucket, the rest of the application interacts with files identically.
+*   **OSS Integration:** `backend/wrappers/oss_client.py` uses the official `oss2` Python SDK to expose uniform methods (`upload_file`, `download_file`, `get_signed_url`) for interacting with Alibaba Cloud OSS.
+*   **Qwen/Model Studio Integration:** `backend/wrappers/qwen_client.py` uses the `openai` SDK mapped directly to the Alibaba Cloud DashScope/Model Studio endpoints.
+
+Regardless of whether the underlying services are mocked for local dev or connected to real Alibaba infrastructure, the rest of the application interacts with them identically.
 
 ## Switching to OSS Mode
 
@@ -44,4 +44,16 @@ This will return a JSON payload detailing:
 
 ## Hackathon Proof Requirement
 
-This integration explicitly satisfies hackathon requirements for Alibaba Cloud utilization by directly mapping the core asset pipeline (Document Intake -> Processing -> Package Export) through native Alibaba OSS endpoints using the official `oss2` Python SDK.
+This integration explicitly satisfies hackathon requirements for Alibaba Cloud utilization by directly mapping the core asset pipeline (Document Intake -> Processing -> Package Export) through native Alibaba OSS endpoints using the official `oss2` Python SDK, and core reasoning tasks to Alibaba Model Studio / Qwen Cloud.
+
+### Short Proof Recording Checklist
+
+When creating the short proof recording required by the hackathon submission, ensure you show the following:
+
+*   [ ] SSH or terminal showing ECS environment.
+*   [ ] Docker containers running.
+*   [ ] Backend health endpoint (`GET /api/health`).
+*   [ ] Qwen health endpoint (`GET /api/health/qwen`).
+*   [ ] Storage/OSS health endpoint (`GET /api/health/storage`).
+*   [ ] App running in browser.
+*   [ ] Export ZIP generated and stored through configured storage.
