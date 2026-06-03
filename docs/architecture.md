@@ -2,6 +2,10 @@
 
 The DatasetOps Autopilot system is designed as an autonomous workflow agent that processes documents and generates RAG evaluation benchmarks.
 
+![Architecture Diagram](assets/architecture.png)
+
+*(Note: The diagram above is a placeholder. A detailed architecture diagram should be placed here if available. For now, see the textual description below.)*
+
 ## Components
 
 1. **Frontend (Next.js)**: Provides the user interface for project creation, plan review, sample validation, and artifact download.

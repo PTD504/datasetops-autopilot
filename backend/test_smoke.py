@@ -23,7 +23,10 @@ def test_full_mock_workflow():
 
     try:
         # 2. Upload doc
-        with open("examples/vietnamese-ecommerce-policy/refund_policy.md", "rb") as f:
+        import os
+        base_path = os.path.dirname(os.path.dirname(__file__))
+        file_path = os.path.join(base_path, "examples", "vietnamese-ecommerce-policy", "refund_policy.md")
+        with open(file_path, "rb") as f:
             response = client.post(f"/api/projects/{project_id}/documents", files={"file": ("refund_policy.md", f, "text/markdown")})
         assert response.status_code == 200
 

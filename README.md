@@ -39,4 +39,14 @@ See `docs/architecture.md` for full details.
 
 3. Open `http://localhost:3000`
 
-See more details in `docs/deployment.md`.
+See more details in `docs/deployment.md` and `docs/alibaba-ecs-deployment.md`.
+
+## Deployment Verification
+
+Once deployed (locally or on ECS), verify your environment configuration using the built-in health checks:
+
+*   **Core Backend Health**: `GET /api/health`
+*   **Qwen API Health**: `GET /api/health/qwen` (Verifies connection to Model Studio)
+*   **OSS Storage Health**: `GET /api/health/storage` (Verifies Read/Write permissions to your Alibaba Cloud OSS bucket)
+*   **Frontend Check**: Open the root URL in a browser and ensure the UI loads.
+*   **End-to-End Check**: Run a quick test project and verify a sample export ZIP successfully downloads.

@@ -45,4 +45,7 @@ Thumbs.db
 # Docker
 docker-data/
 datasetops.db
+backend/datasetops.db
 backend/exports/
+backend/storage/exports/
+backend/storage/
