@@ -5,6 +5,7 @@ from backend.core.database import get_db, SessionLocal
 from backend.models import Project, Document, BenchmarkPlan, Sample
 from pydantic import BaseModel
 import os
+from pathlib import Path
 
 from backend.pipeline.parser import DocumentParser
 from backend.pipeline.chunker import DocumentChunker
@@ -19,6 +20,7 @@ from backend.services.cancellation import (
     request_cancellation,
     workflow_state_value,
 )
+from backend.services.errors import sanitize_error_message
 
 router = APIRouter()
 
@@ -33,6 +35,7 @@ class ProjectResponse(BaseModel):
     workflow_state: str
     cancel_requested: bool = False
     cancel_reason: str | None = None
+    last_error: str | None = None
 
     class Config:
         from_attributes = True
@@ -71,25 +74,27 @@ async def upload_document(project_id: str, file: UploadFile = File(...), db: Ses
 
     content = await file.read()
     text_content = content.decode('utf-8', errors='ignore')
+    safe_filename = Path(file.filename or "upload.txt").name
 
     # Store locally for fallback
     os.makedirs(f"backend/uploads/{project_id}", exist_ok=True)
-    file_path = f"backend/uploads/{project_id}/{file.filename}"
+    file_path = f"backend/uploads/{project_id}/{safe_filename}"
     with open(file_path, "wb") as f:
         f.write(content)
 
     parser = DocumentParser()
-    cleaned_content = parser.parse(file.filename, text_content)
+    cleaned_content = parser.parse(safe_filename, text_content)
 
     db_doc = Document(
         project_id=project_id,
-        filename=file.filename,
+        filename=safe_filename,
         file_path=file_path,
         content=cleaned_content
     )
     db.add(db_doc)
 
     project.workflow_state = "FILES_UPLOADED"
+    project.last_error = None
     db.commit()
     db.refresh(db_doc)
     return {"id": db_doc.id, "filename": db_doc.filename}
@@ -153,6 +158,7 @@ def _run_initial_workflow(project_id: str):
     except Exception as e:
         print(f"Error in initial workflow: {e}")
         project.workflow_state = "FAILED"
+        project.last_error = sanitize_error_message(e)
         db.commit()
     finally:
         db.close()
@@ -165,8 +171,15 @@ def start_workflow(project_id: str, background_tasks: BackgroundTasks, db: Sessi
         raise HTTPException(status_code=404, detail="Project not found")
     if project.cancel_requested:
         return request_cancellation(db, project)
+    document_count = db.query(Document).filter(Document.project_id == project_id).count()
+    if document_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Upload at least one source document before starting the workflow."
+        )
 
     project.workflow_state = "PARSING"
+    project.last_error = None
     db.commit()
 
     background_tasks.add_task(_run_initial_workflow, project_id)
@@ -182,6 +195,7 @@ def get_project_status(project_id: str, db: Session = Depends(get_db)):
         "workflow_state": workflow_state_value(project),
         "cancel_requested": project.cancel_requested,
         "cancel_reason": project.cancel_reason,
+        "last_error": project.last_error,
     }
 
 @router.get("/{project_id}/usage")
@@ -198,7 +212,7 @@ def get_project_usage(project_id: str, db: Session = Depends(get_db)):
     policy = guard.policy
 
     budget_status = "ok"
-    if guard.enabled and settings.RUN_MODE != "mock":
+    if guard.enabled and not settings.effective_mock_llm:
         if summary.calls_used >= policy.max_calls or summary.total_tokens_used >= policy.max_total_tokens or summary.estimated_cost_used >= policy.max_cost_usd:
             budget_status = "exceeded"
 
@@ -208,9 +222,14 @@ def get_project_usage(project_id: str, db: Session = Depends(get_db)):
     return {
         "project_id": project.id,
         "workflow_state": workflow_state_value(project),
-        "llm_mode": settings.RUN_MODE,
+        "llm_mode": settings.effective_llm_mode,
+        "run_mode": settings.RUN_MODE,
+        "mock_mode": settings.effective_mock_llm or not settings.QWEN_API_KEY,
         "guardrails_enabled": guard.enabled,
+        "attempted_calls": summary.attempted_calls,
         "calls_used": summary.calls_used,
+        "failed_calls": summary.failed_calls,
+        "blocked_calls": summary.blocked_calls,
         "max_calls": policy.max_calls,
         "input_tokens_used": summary.input_tokens_used,
         "max_input_tokens": policy.max_input_tokens,
@@ -223,6 +242,7 @@ def get_project_usage(project_id: str, db: Session = Depends(get_db)):
         "budget_status": budget_status,
         "cancel_requested": project.cancel_requested,
         "cancel_reason": project.cancel_reason,
+        "last_error": project.last_error,
     }
 
 @router.get("/{project_id}/plan")
@@ -287,6 +307,7 @@ def _run_generation_workflow(project_id: str):
     except Exception as e:
         print(f"Error in generation workflow: {e}")
         project.workflow_state = "FAILED"
+        project.last_error = sanitize_error_message(e)
         db.commit()
     finally:
         db.close()
@@ -301,6 +322,7 @@ def approve_plan(project_id: str, background_tasks: BackgroundTasks, db: Session
         return request_cancellation(db, project)
 
     project.workflow_state = "PLAN_APPROVED"
+    project.last_error = None
     db.commit()
 
     background_tasks.add_task(_run_generation_workflow, project_id)

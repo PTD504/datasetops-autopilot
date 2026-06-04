@@ -4,8 +4,11 @@ import uuid
 import sys
 import os
 import pytest
+import io
 from backend.core.database import Base, engine, SessionLocal
 from backend.models import Project
+from backend.models.usage import LLMUsageRecord
+from backend.services.errors import sanitize_error_message
 from backend.services.cancellation import WorkflowCancellationRequested
 from backend.wrappers.qwen_client import QwenClient
 
@@ -44,6 +47,42 @@ def test_get_project():
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == project_id
+
+def test_start_requires_at_least_one_uploaded_document():
+    response = client.post("/api/projects/", json={
+        "name": "No Docs Project",
+        "description": "A project without files",
+        "benchmark_request": "Test request"
+    })
+    assert response.status_code == 200
+    project_id = response.json()["id"]
+
+    response = client.post(f"/api/projects/{project_id}/start")
+    assert response.status_code == 400
+    assert "Upload at least one source document" in response.json()["detail"]
+
+def test_upload_document_sanitizes_filename_and_allows_start():
+    response = client.post("/api/projects/", json={
+        "name": "Upload Sanitized Project",
+        "description": "A project with a file",
+        "benchmark_request": "Test request"
+    })
+    assert response.status_code == 200
+    project_id = response.json()["id"]
+
+    response = client.post(
+        f"/api/projects/{project_id}/documents",
+        files={"file": ("../policy.md", io.BytesIO(b"# Policy\nRefunds are allowed."), "text/markdown")},
+    )
+    assert response.status_code == 200
+    assert response.json()["filename"] == "policy.md"
+
+    docs = client.get(f"/api/projects/{project_id}/documents")
+    assert docs.status_code == 200
+    assert docs.json()[0]["filename"] == "policy.md"
+
+    response = client.post(f"/api/projects/{project_id}/start")
+    assert response.status_code == 200
 
 def test_stop_unknown_project_returns_404():
     response = client.post(f"/api/projects/{uuid.uuid4()}/stop")
@@ -137,6 +176,7 @@ def test_cancelled_project_blocks_real_qwen_call_before_network(monkeypatch):
     db.commit()
     db.refresh(project)
 
+    monkeypatch.setattr("backend.wrappers.qwen_client.settings.RUN_MODE", "real_test")
     monkeypatch.setattr("backend.wrappers.qwen_client.settings.MOCK_LLM", False)
     monkeypatch.setattr("backend.wrappers.qwen_client.settings.QWEN_API_KEY", "dummy-test-key")
 
@@ -155,6 +195,85 @@ def test_cancelled_project_blocks_real_qwen_call_before_network(monkeypatch):
         client_under_test.generate_json("Generate a real response")
 
     db.close()
+
+def test_real_run_mode_overrides_default_mock_flag_when_credentials_exist(monkeypatch):
+    monkeypatch.setattr("backend.wrappers.qwen_client.settings.RUN_MODE", "real_test")
+    monkeypatch.setattr("backend.wrappers.qwen_client.settings.MOCK_LLM", True)
+    monkeypatch.setattr("backend.wrappers.qwen_client.settings.QWEN_API_KEY", "dummy-test-key")
+
+    client_under_test = QwenClient()
+
+    assert client_under_test.use_mock is False
+
+def test_usage_reports_effective_real_mode(monkeypatch):
+    monkeypatch.setattr("backend.core.config.settings.RUN_MODE", "real_test")
+    monkeypatch.setattr("backend.core.config.settings.MOCK_LLM", True)
+    monkeypatch.setattr("backend.core.config.settings.QWEN_API_KEY", "dummy-test-key")
+
+    response = client.post("/api/projects/", json={
+        "name": "Real Mode Usage Project",
+        "description": "A test project for mode display",
+        "benchmark_request": "Test request"
+    })
+    project_id = response.json()["id"]
+
+    usage = client.get(f"/api/projects/{project_id}/usage")
+
+    assert usage.status_code == 200
+    data = usage.json()
+    assert data["llm_mode"] == "real_test"
+    assert data["run_mode"] == "real_test"
+    assert data["mock_mode"] is False
+
+def test_usage_reports_failed_and_blocked_attempts_without_secrets():
+    response = client.post("/api/projects/", json={
+        "name": "Usage Failure Count Project",
+        "description": "A test project for failed usage counters",
+        "benchmark_request": "Test request"
+    })
+    project_id = response.json()["id"]
+
+    db = SessionLocal()
+    db.add(LLMUsageRecord(
+        project_id=project_id,
+        run_mode="real_test",
+        agent_name="TestAgent",
+        model="qwen-plus",
+        input_tokens=10,
+        output_tokens=0,
+        total_tokens=10,
+        estimated_cost_usd=0.0,
+        status="error",
+        error_message=sanitize_error_message("Incorrect API key provided: sk-test-secret")
+    ))
+    db.add(LLMUsageRecord(
+        project_id=project_id,
+        run_mode="real_test",
+        agent_name="TestAgent",
+        model="qwen-plus",
+        input_tokens=10,
+        output_tokens=0,
+        total_tokens=10,
+        estimated_cost_usd=0.0,
+        status="blocked",
+        error_message="Budget exceeded"
+    ))
+    project = db.query(Project).filter(Project.id == project_id).first()
+    project.workflow_state = "FAILED"
+    project.last_error = sanitize_error_message("Incorrect API key provided: sk-test-secret")
+    db.commit()
+    db.close()
+
+    usage = client.get(f"/api/projects/{project_id}/usage")
+    assert usage.status_code == 200
+    data = usage.json()
+    assert data["attempted_calls"] == 2
+    assert data["calls_used"] == 0
+    assert data["failed_calls"] == 1
+    assert data["blocked_calls"] == 1
+    assert "redacted" not in data["last_error"].lower()
+    assert "sk-test-secret" not in data["last_error"]
+    assert "Qwen API rejected" in data["last_error"]
 
 if __name__ == "__main__":
     test_health()

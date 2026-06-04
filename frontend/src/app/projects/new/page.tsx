@@ -12,6 +12,7 @@ export default function NewProject() {
   const router = useRouter()
   const [name, setName] = useState("")
   const [request, setRequest] = useState("")
+  const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,16 +31,34 @@ export default function NewProject() {
       if (!res.ok) throw new Error("Failed to create project")
       const data = await res.json()
 
-      // We are skipping the real file upload for MVP/hackathon UI speed,
-      // but the backend supports it. For now, we auto-start workflow.
-      await fetch(`${apiUrl}/api/projects/${data.id}/start`, {
+      if (files.length === 0) {
+        throw new Error("Upload at least one source document before starting.")
+      }
+
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append("file", file)
+        const uploadRes = await fetch(`${apiUrl}/api/projects/${data.id}/documents`, {
+          method: "POST",
+          body: formData,
+        })
+        if (!uploadRes.ok) {
+          throw new Error(`Failed to upload ${file.name}`)
+        }
+      }
+
+      const startRes = await fetch(`${apiUrl}/api/projects/${data.id}/start`, {
         method: "POST"
       })
+      if (!startRes.ok) {
+        const error = await startRes.json().catch(() => null)
+        throw new Error(error?.detail || "Failed to start workflow")
+      }
 
       router.push(`/projects/${data.id}`)
     } catch (err) {
       console.error(err)
-      alert("Error creating project")
+      alert(err instanceof Error ? err.message : "Error creating project")
     } finally {
       setLoading(false)
     }
@@ -72,7 +91,14 @@ export default function NewProject() {
 
             <div className="space-y-2">
               <Label htmlFor="files">Source Documents (TXT, MD)</Label>
-              <Input id="files" type="file" multiple />
+              <Input
+                id="files"
+                type="file"
+                multiple
+                required
+                accept=".txt,.md,.markdown,text/plain,text/markdown"
+                onChange={e => setFiles(Array.from(e.target.files || []))}
+              />
               <p className="text-sm text-muted-foreground">Upload the knowledge base the RAG system will use.</p>
             </div>
 
