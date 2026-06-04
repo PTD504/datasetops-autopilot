@@ -37,6 +37,8 @@ See `docs/architecture.md` for full details.
    docker compose up --build
    ```
 
+   Local Compose reads `.env` for `RUN_MODE`, `MOCK_LLM`, and Qwen settings. Use `RUN_MODE=real_test` plus `QWEN_API_KEY` for a guarded real-Qwen run.
+
 3. Open `http://localhost:3000`
 
 See more details in `docs/deployment.md` and `docs/alibaba-ecs-deployment.md`.
@@ -50,3 +52,4 @@ Once deployed (locally or on ECS), verify your environment configuration using t
 *   **OSS Storage Health**: `GET /api/health/storage` (Verifies Read/Write permissions to your Alibaba Cloud OSS bucket)
 *   **Frontend Check**: Open the root URL in a browser and ensure the UI loads.
 *   **End-to-End Check**: Run a quick test project and verify a sample export ZIP successfully downloads.
+*   **Manual Stop Check**: `POST /api/projects/{project_id}/stop` requests cancellation before later workflow stages or real Qwen calls.

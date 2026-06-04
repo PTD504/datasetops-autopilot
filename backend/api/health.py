@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/qwen")
 def health_qwen():
-    mock_mode = settings.MOCK_LLM
+    mock_mode = settings.effective_mock_llm or not settings.QWEN_API_KEY
     creds_configured = bool(settings.QWEN_API_KEY)
 
     # We use QwenClient to perform a tiny real test if applicable
@@ -25,6 +25,8 @@ def health_qwen():
 
     return {
         "mock_mode": mock_mode,
+        "run_mode": settings.RUN_MODE,
+        "effective_llm_mode": settings.effective_llm_mode,
         "credentials_configured": creds_configured,
         "model": settings.QWEN_MODEL if not mock_mode else "mock",
         "fallback_allowed": settings.ALLOW_LLM_FALLBACK,

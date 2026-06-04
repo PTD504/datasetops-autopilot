@@ -2,19 +2,28 @@ import json
 import logging
 from typing import Dict, Any, Optional
 from openai import OpenAI
+from sqlalchemy.orm import Session
 from backend.core.config import settings
+from backend.services.llm_budget import LLMBudgetGuard, BudgetExceededError
+from backend.services.cancellation import WorkflowCancellationRequested, raise_if_cancelled
+from backend.services.errors import sanitize_error_message
 
 logger = logging.getLogger(__name__)
 
 class QwenClient:
-    def __init__(self):
-        self.use_mock = settings.MOCK_LLM or not settings.QWEN_API_KEY
+    def __init__(self, project_id: str = None, agent_name: str = "UnknownAgent", db: Session = None):
+        self.use_mock = settings.effective_mock_llm or not settings.QWEN_API_KEY
+        self.project_id = project_id
+        self.agent_name = agent_name
+        self.db = db
+        self.budget_guard = LLMBudgetGuard(db, project_id) if (db and project_id) else None
+
+        self.model = settings.QWEN_MODEL
         if not self.use_mock:
             self.client = OpenAI(
                 api_key=settings.QWEN_API_KEY,
                 base_url=settings.QWEN_BASE_URL,
             )
-            self.model = settings.QWEN_MODEL
 
     def generate_json(self, prompt: str, system_prompt: str = "You are a helpful assistant. Output JSON only.", _retry_count: int = 0) -> Dict[Any, Any]:
         """
@@ -25,6 +34,23 @@ class QwenClient:
             return self._get_mock_response(prompt)
 
         logger.info(f"Using REAL Qwen Client (model: {self.model}) for generate_json")
+
+        # Cancellation and budget pre-checks happen before any network execution.
+        estimated_input = len(prompt) // 4 + len(system_prompt) // 4
+        if self.db and self.project_id:
+            raise_if_cancelled(self.db, self.project_id, f"{self.agent_name}.generate_json")
+
+        if self.budget_guard:
+            try:
+                self.budget_guard.check_budget(estimated_input_tokens=estimated_input)
+            except BudgetExceededError as e:
+                logger.error(f"Budget blocked call: {e}")
+                self.budget_guard.record_usage(self.agent_name, self.model, estimated_input, 0, "blocked", str(e))
+                if settings.QWEN_STOP_ON_BUDGET_EXCEEDED:
+                    raise e
+                else:
+                    return self._get_mock_response(prompt)
+
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -34,6 +60,12 @@ class QwenClient:
                 ],
                 response_format={"type": "json_object"}
             )
+
+            # Post-call usage recording
+            input_tokens = getattr(response.usage, "prompt_tokens", estimated_input) if hasattr(response, "usage") else estimated_input
+            output_tokens = getattr(response.usage, "completion_tokens", 0) if hasattr(response, "usage") else 0
+            if self.budget_guard:
+                self.budget_guard.record_usage(self.agent_name, self.model, input_tokens, output_tokens, "success")
 
             content = response.choices[0].message.content
             try:
@@ -47,8 +79,13 @@ class QwenClient:
                     return self.generate_json(prompt, system_prompt, _retry_count=_retry_count + 1)
                 raise Exception(f"Failed to parse JSON after retry: {e}") from e
 
+        except WorkflowCancellationRequested:
+            raise
         except Exception as e:
             logger.error(f"Qwen API error: {e}")
+            if self.budget_guard and not isinstance(e, BudgetExceededError):
+                 self.budget_guard.record_usage(self.agent_name, self.model, estimated_input, 0, "error", sanitize_error_message(e))
+
             if not settings.ALLOW_LLM_FALLBACK:
                 logger.error("ALLOW_LLM_FALLBACK is false. Raising error.")
                 raise Exception(f"Qwen API error and fallback disabled: {e}") from e
@@ -61,6 +98,11 @@ class QwenClient:
         """
         Deterministic mock responses based on prompt keywords.
         """
+        if self.budget_guard:
+            # Mock mode tracks usage but doesn't block
+            estimated_input = len(prompt) // 4
+            self.budget_guard.record_usage(self.agent_name, "mock", estimated_input, 100, "success")
+
         lower_prompt = prompt.lower()
 
         # Check for specific Vietnamese demo
