@@ -16,6 +16,14 @@ The system has three primary modes regarding LLM calls, configured via environme
 
 A built-in safety layer checks token projections and tracks spending dynamically. You can review the current budget usage in the frontend UI or hit `/api/projects/{project_id}/usage`. If usage limits are hit, the workflow automatically blocks further LLM calls. If you wish to stop a runaway process, use the UI "Stop Workflow" button.
 
+You can also manually request workflow cancellation through the API:
+
+```http
+POST /api/projects/{project_id}/stop
+```
+
+The backend persists `cancel_requested` state and checks it before long-running workflow checkpoints and before every real Qwen network call. The status and usage endpoints expose `cancel_requested` and `cancel_reason` so clients can show that the run was stopped without exposing prompts, credentials, or API keys.
+
 ## Required Environment Variables
 
 For Real Qwen mode (safely restricted), set the following in your `.env`:

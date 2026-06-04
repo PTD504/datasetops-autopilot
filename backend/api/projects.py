@@ -13,6 +13,12 @@ from backend.agents.source_understanding import SourceUnderstandingAgent
 from backend.agents.generator import BenchmarkGeneratorAgent
 from backend.agents.evaluator import QualityEvaluatorAgent
 from backend.agents.exporter import ExportReportAgent
+from backend.services.cancellation import (
+    WorkflowCancellationRequested,
+    raise_if_cancelled,
+    request_cancellation,
+    workflow_state_value,
+)
 
 router = APIRouter()
 
@@ -25,6 +31,8 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     workflow_state: str
+    cancel_requested: bool = False
+    cancel_reason: str | None = None
 
     class Config:
         from_attributes = True
@@ -47,6 +55,13 @@ def get_project(project_id: str, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
+
+@router.post("/{project_id}/stop")
+def stop_workflow(project_id: str, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return request_cancellation(db, project)
 
 @router.post("/{project_id}/documents")
 async def upload_document(project_id: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -91,6 +106,8 @@ def _run_initial_workflow(project_id: str):
         if not project:
             return
 
+        raise_if_cancelled(db, project_id, "initial_workflow.start")
+
         # 1. Chunking
         project.workflow_state = "CHUNKING"
         db.commit()
@@ -98,6 +115,7 @@ def _run_initial_workflow(project_id: str):
         chunker = DocumentChunker()
         docs = db.query(Document).filter(Document.project_id == project_id).all()
         for doc in docs:
+             raise_if_cancelled(db, project_id, "chunking.document")
              chunks = chunker.chunk(doc.id, doc.content)
              from backend.models import Chunk
              for c_data in chunks:
@@ -110,6 +128,7 @@ def _run_initial_workflow(project_id: str):
         db.commit()
 
         # 2. Source Analyzing
+        raise_if_cancelled(db, project_id, "source_understanding.before")
         project.workflow_state = "SOURCE_ANALYZING"
         db.commit()
 
@@ -120,6 +139,7 @@ def _run_initial_workflow(project_id: str):
         db.commit()
 
         # 3. Planning
+        raise_if_cancelled(db, project_id, "planning.before")
         project.workflow_state = "PLANNING"
         db.commit()
 
@@ -128,6 +148,8 @@ def _run_initial_workflow(project_id: str):
 
         project.workflow_state = "WAITING_FOR_PLAN_APPROVAL"
         db.commit()
+    except WorkflowCancellationRequested as e:
+        print(f"Initial workflow cancelled: {e}")
     except Exception as e:
         print(f"Error in initial workflow: {e}")
         project.workflow_state = "FAILED"
@@ -141,6 +163,8 @@ def start_workflow(project_id: str, background_tasks: BackgroundTasks, db: Sessi
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    if project.cancel_requested:
+        return request_cancellation(db, project)
 
     project.workflow_state = "PARSING"
     db.commit()
@@ -153,7 +177,12 @@ def get_project_status(project_id: str, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return {"workflow_state": project.workflow_state}
+    return {
+        "project_id": project.id,
+        "workflow_state": workflow_state_value(project),
+        "cancel_requested": project.cancel_requested,
+        "cancel_reason": project.cancel_reason,
+    }
 
 @router.get("/{project_id}/usage")
 def get_project_usage(project_id: str, db: Session = Depends(get_db)):
@@ -173,10 +202,12 @@ def get_project_usage(project_id: str, db: Session = Depends(get_db)):
         if summary.calls_used >= policy.max_calls or summary.total_tokens_used >= policy.max_total_tokens or summary.estimated_cost_used >= policy.max_cost_usd:
             budget_status = "exceeded"
 
-    if project.workflow_state in ["CANCEL_REQUESTED", "CANCELLED"]:
+    if project.cancel_requested:
         budget_status = "stopped"
 
     return {
+        "project_id": project.id,
+        "workflow_state": workflow_state_value(project),
         "llm_mode": settings.RUN_MODE,
         "guardrails_enabled": guard.enabled,
         "calls_used": summary.calls_used,
@@ -190,7 +221,8 @@ def get_project_usage(project_id: str, db: Session = Depends(get_db)):
         "estimated_cost_used": summary.estimated_cost_used,
         "max_estimated_cost": policy.max_cost_usd,
         "budget_status": budget_status,
-        "cancel_requested": project.workflow_state in ["CANCEL_REQUESTED", "CANCELLED"]
+        "cancel_requested": project.cancel_requested,
+        "cancel_reason": project.cancel_reason,
     }
 
 @router.get("/{project_id}/plan")
@@ -208,6 +240,8 @@ def _run_generation_workflow(project_id: str):
         if not project or not plan:
             return
 
+        raise_if_cancelled(db, project_id, "generation_workflow.start")
+
         project.workflow_state = "GENERATING"
         db.commit()
 
@@ -221,28 +255,35 @@ def _run_generation_workflow(project_id: str):
 
         samples = generator.generate(plan, total_samples)
 
+        raise_if_cancelled(db, project_id, "evaluation.before")
         project.workflow_state = "EVALUATING"
         db.commit()
 
         # Evaluate and trigger repair loop
         for sample in samples:
+             raise_if_cancelled(db, project_id, "evaluation.sample")
              eval_result, needs_repair = evaluator.evaluate(sample)
 
              if needs_repair and sample.retry_count < 2:
+                 raise_if_cancelled(db, project_id, "repair.before")
                  sample.retry_count += 1
                  db.commit()
                  # Send back for repair
                  generator.generate(plan, 1, mode="repair", sample=sample)
                  # Re-evaluate
+                 raise_if_cancelled(db, project_id, "repair.evaluation")
                  evaluator.evaluate(sample)
 
         project.workflow_state = "WAITING_FOR_SAMPLE_REVIEW"
         db.commit()
 
         # For hackathon demo speed, immediately export if some samples are approved
+        raise_if_cancelled(db, project_id, "export.before")
         exporter = ExportReportAgent(db, project_id)
         exporter.run()
 
+    except WorkflowCancellationRequested as e:
+        print(f"Generation workflow cancelled: {e}")
     except Exception as e:
         print(f"Error in generation workflow: {e}")
         project.workflow_state = "FAILED"
@@ -256,6 +297,8 @@ def approve_plan(project_id: str, background_tasks: BackgroundTasks, db: Session
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    if project.cancel_requested:
+        return request_cancellation(db, project)
 
     project.workflow_state = "PLAN_APPROVED"
     db.commit()

@@ -5,6 +5,7 @@ from openai import OpenAI
 from sqlalchemy.orm import Session
 from backend.core.config import settings
 from backend.services.llm_budget import LLMBudgetGuard, BudgetExceededError
+from backend.services.cancellation import WorkflowCancellationRequested, raise_if_cancelled
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,11 @@ class QwenClient:
 
         logger.info(f"Using REAL Qwen Client (model: {self.model}) for generate_json")
 
-        # Budget Pre-Check
+        # Cancellation and budget pre-checks happen before any network execution.
         estimated_input = len(prompt) // 4 + len(system_prompt) // 4
+        if self.db and self.project_id:
+            raise_if_cancelled(self.db, self.project_id, f"{self.agent_name}.generate_json")
+
         if self.budget_guard:
             try:
                 self.budget_guard.check_budget(estimated_input_tokens=estimated_input)
@@ -74,6 +78,8 @@ class QwenClient:
                     return self.generate_json(prompt, system_prompt, _retry_count=_retry_count + 1)
                 raise Exception(f"Failed to parse JSON after retry: {e}") from e
 
+        except WorkflowCancellationRequested:
+            raise
         except Exception as e:
             logger.error(f"Qwen API error: {e}")
             if self.budget_guard and not isinstance(e, BudgetExceededError):

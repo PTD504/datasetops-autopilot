@@ -6,7 +6,9 @@
 * `POST /api/projects/{project_id}/documents`: Upload a document.
 * `GET /api/projects/{project_id}/documents`: List project documents.
 * `POST /api/projects/{project_id}/start`: Start the autopilot workflow.
+* `POST /api/projects/{project_id}/stop`: Request cancellation for an active workflow before later guarded steps or Qwen calls.
 * `GET /api/projects/{project_id}/status`: Get current workflow state.
+* `GET /api/projects/{project_id}/usage`: Get Qwen usage guardrail totals plus cancellation state.
 
 ## Planning
 * `GET /api/projects/{project_id}/plan`: Get the proposed benchmark plan.

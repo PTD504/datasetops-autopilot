@@ -50,3 +50,4 @@ Once deployed (locally or on ECS), verify your environment configuration using t
 *   **OSS Storage Health**: `GET /api/health/storage` (Verifies Read/Write permissions to your Alibaba Cloud OSS bucket)
 *   **Frontend Check**: Open the root URL in a browser and ensure the UI loads.
 *   **End-to-End Check**: Run a quick test project and verify a sample export ZIP successfully downloads.
+*   **Manual Stop Check**: `POST /api/projects/{project_id}/stop` requests cancellation before later workflow stages or real Qwen calls.

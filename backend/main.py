@@ -5,10 +5,11 @@ import os
 from dotenv import load_dotenv
 
 from backend.api import api_router
-from backend.core.database import Base, engine
+from backend.core.database import Base, engine, ensure_project_cancel_columns
 
 # Automatically create DB schema on startup (especially useful for postgres container initialization)
 Base.metadata.create_all(bind=engine)
+ensure_project_cancel_columns()
 
 load_dotenv()
 

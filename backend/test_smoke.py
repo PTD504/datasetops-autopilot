@@ -4,6 +4,7 @@ from backend.main import app
 import time
 import os
 import shutil
+import io
 from backend.core.database import Base, engine
 
 # Initialize db for tests
@@ -23,11 +24,17 @@ def test_full_mock_workflow():
 
     try:
         # 2. Upload doc
-        import os
-        base_path = os.path.dirname(os.path.dirname(__file__))
-        file_path = os.path.join(base_path, "examples", "vietnamese-ecommerce-policy", "refund_policy.md")
-        with open(file_path, "rb") as f:
-            response = client.post(f"/api/projects/{project_id}/documents", files={"file": ("refund_policy.md", f, "text/markdown")})
+        content = b"""
+        # Refund Policy
+
+        Customers can request a refund within 14 days when the product is defective,
+        damaged during shipping, or not as described. Refund requests require the
+        order number and photos of the issue.
+        """
+        response = client.post(
+            f"/api/projects/{project_id}/documents",
+            files={"file": ("refund_policy.md", io.BytesIO(content), "text/markdown")},
+        )
         assert response.status_code == 200
 
         # 3. Start workflow

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Enum
+from sqlalchemy import Column, String, Text, DateTime, Enum, Boolean
 from sqlalchemy.orm import relationship
 import uuid
 import datetime
@@ -13,6 +13,9 @@ class Project(Base):
     description = Column(Text, nullable=True)
     benchmark_request = Column(Text, nullable=False)
     workflow_state = Column(Enum(WorkflowState), default=WorkflowState.CREATED)
+    cancel_requested = Column(Boolean, default=False, nullable=False)
+    cancel_reason = Column(Text, nullable=True)
+    cancel_requested_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
