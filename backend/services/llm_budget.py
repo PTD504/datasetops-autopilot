@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from backend.models.usage import LLMUsageRecord
 from backend.core.config import settings
+from backend.services.errors import sanitize_error_message
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,10 @@ class RunBudgetPolicy(BaseModel):
     max_cost_usd: float = settings.QWEN_MAX_ESTIMATED_COST_USD_PER_RUN
 
 class RunUsageSummary(BaseModel):
+    attempted_calls: int = 0
     calls_used: int = 0
+    failed_calls: int = 0
+    blocked_calls: int = 0
     input_tokens_used: int = 0
     output_tokens_used: int = 0
     total_tokens_used: int = 0
@@ -34,20 +38,23 @@ class LLMBudgetGuard:
 
     def get_summary(self) -> RunUsageSummary:
         records = self.db.query(LLMUsageRecord).filter(
-            LLMUsageRecord.project_id == self.project_id,
-            LLMUsageRecord.status == "success"
+            LLMUsageRecord.project_id == self.project_id
         ).all()
+        success_records = [record for record in records if record.status == "success"]
 
         summary = RunUsageSummary()
-        summary.calls_used = len(records)
-        summary.input_tokens_used = sum(r.input_tokens for r in records)
-        summary.output_tokens_used = sum(r.output_tokens for r in records)
-        summary.total_tokens_used = sum(r.total_tokens for r in records)
-        summary.estimated_cost_used = sum(r.estimated_cost_usd for r in records)
+        summary.attempted_calls = len(records)
+        summary.calls_used = len(success_records)
+        summary.failed_calls = sum(1 for record in records if record.status == "error")
+        summary.blocked_calls = sum(1 for record in records if record.status == "blocked")
+        summary.input_tokens_used = sum(r.input_tokens for r in success_records)
+        summary.output_tokens_used = sum(r.output_tokens for r in success_records)
+        summary.total_tokens_used = sum(r.total_tokens for r in success_records)
+        summary.estimated_cost_used = sum(r.estimated_cost_usd for r in success_records)
         return summary
 
     def check_budget(self, estimated_input_tokens: int = 0):
-        if not self.enabled or settings.RUN_MODE == "mock":
+        if not self.enabled or settings.effective_mock_llm:
             return
 
         summary = self.get_summary()
@@ -84,7 +91,7 @@ class LLMBudgetGuard:
             total_tokens=total_tokens,
             estimated_cost_usd=cost_usd,
             status=status,
-            error_message=error_message
+            error_message=sanitize_error_message(error_message) if error_message else None
         )
         self.db.add(record)
         self.db.commit()

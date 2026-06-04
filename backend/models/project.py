@@ -16,6 +16,7 @@ class Project(Base):
     cancel_requested = Column(Boolean, default=False, nullable=False)
     cancel_reason = Column(Text, nullable=True)
     cancel_requested_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

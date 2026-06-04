@@ -25,6 +25,8 @@ def ensure_project_cancel_columns():
         additions.append(("cancel_reason", "TEXT NULL"))
     if "cancel_requested_at" not in columns:
         additions.append(("cancel_requested_at", "TIMESTAMP NULL"))
+    if "last_error" not in columns:
+        additions.append(("last_error", "TEXT NULL"))
 
     if not additions:
         return
