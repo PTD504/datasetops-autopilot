@@ -37,6 +37,8 @@ See `docs/architecture.md` for full details.
    docker compose up --build
    ```
 
+   Local Compose reads `.env` for `RUN_MODE`, `MOCK_LLM`, and Qwen settings. Use `RUN_MODE=real_test` plus `QWEN_API_KEY` for a guarded real-Qwen run.
+
 3. Open `http://localhost:3000`
 
 See more details in `docs/deployment.md` and `docs/alibaba-ecs-deployment.md`.

@@ -6,8 +6,8 @@ DatasetOps Autopilot uses Alibaba Cloud's Qwen LLM family to automate data gener
 
 The system has three primary modes regarding LLM calls, configured via environment variables. These are further controlled by `RUN_MODE`.
 
-1.  **Mock Mode (`MOCK_LLM=true` or `RUN_MODE=mock`)**: The system does not make network calls. It uses deterministic responses defined in `backend/wrappers/qwen_client.py`. This is ideal for local testing, frontend development, and guaranteed demos.
-2.  **Real Qwen Mode (`MOCK_LLM=false`)**: The system uses the configured `QWEN_API_KEY` to make actual chat completion calls to Alibaba Cloud Model Studio.
+1.  **Mock Mode (`RUN_MODE=mock`)**: The system does not make network calls. It uses deterministic responses defined in `backend/wrappers/qwen_client.py`. This is ideal for local testing, frontend development, and guaranteed demos.
+2.  **Real Qwen Mode (`RUN_MODE=real_test` or `RUN_MODE=real_full`)**: The system uses the configured `QWEN_API_KEY` to make actual chat completion calls to Alibaba Cloud Model Studio. These modes select real Qwen even if `MOCK_LLM` was left at its default value.
     * **`RUN_MODE=real_test`**: A restricted safety mode. The system enforces strict caps on `QWEN_MAX_SAMPLES_PER_REAL_RUN` and `QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE` to prevent accidental large spends when working with a limited credit allowance.
     * **`RUN_MODE=real_full`**: Unrestricted operations subject only to the full `QWEN_MAX_*` budget guardrails.
 3.  **Fallback Mode (`ALLOW_LLM_FALLBACK=true` combined with `MOCK_LLM=false`)**: If an API error occurs during Real Qwen Mode (e.g., rate limits, network issues), the system will log a warning and fallback to the deterministic mock responses to prevent pipeline crashes. If strict real responses are required, set `ALLOW_LLM_FALLBACK=false` to enforce failure.
@@ -41,6 +41,14 @@ QWEN_GUARDRAILS_ENABLED=true
 QWEN_MAX_CALLS_PER_RUN=50
 QWEN_MAX_ESTIMATED_COST_USD_PER_RUN=1.0
 ```
+
+For local Docker Compose, rebuild and restart after editing `.env`:
+
+```bash
+docker compose up --build
+```
+
+The backend receives the `.env` mode settings through `docker-compose.yml`; `GET /api/health/qwen` reports both `run_mode` and `effective_llm_mode`.
 
 ## Verifying Integration
 

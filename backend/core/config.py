@@ -31,6 +31,21 @@ class Settings(BaseSettings):
     QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE: int = 1
     QWEN_STOP_ON_BUDGET_EXCEEDED: bool = True
 
+    @property
+    def effective_mock_llm(self) -> bool:
+        run_mode = (self.RUN_MODE or "mock").lower()
+        if run_mode == "mock":
+            return True
+        if run_mode in {"real_test", "real_full"}:
+            return False
+        return self.MOCK_LLM
+
+    @property
+    def effective_llm_mode(self) -> str:
+        if self.effective_mock_llm or not self.QWEN_API_KEY:
+            return "mock"
+        return self.RUN_MODE
+
     class Config:
         env_file = ".env"
 

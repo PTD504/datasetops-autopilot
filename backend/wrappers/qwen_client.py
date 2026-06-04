@@ -6,12 +6,13 @@ from sqlalchemy.orm import Session
 from backend.core.config import settings
 from backend.services.llm_budget import LLMBudgetGuard, BudgetExceededError
 from backend.services.cancellation import WorkflowCancellationRequested, raise_if_cancelled
+from backend.services.errors import sanitize_error_message
 
 logger = logging.getLogger(__name__)
 
 class QwenClient:
     def __init__(self, project_id: str = None, agent_name: str = "UnknownAgent", db: Session = None):
-        self.use_mock = settings.MOCK_LLM or not settings.QWEN_API_KEY
+        self.use_mock = settings.effective_mock_llm or not settings.QWEN_API_KEY
         self.project_id = project_id
         self.agent_name = agent_name
         self.db = db
@@ -83,7 +84,7 @@ class QwenClient:
         except Exception as e:
             logger.error(f"Qwen API error: {e}")
             if self.budget_guard and not isinstance(e, BudgetExceededError):
-                 self.budget_guard.record_usage(self.agent_name, self.model, estimated_input, 0, "error", str(e))
+                 self.budget_guard.record_usage(self.agent_name, self.model, estimated_input, 0, "error", sanitize_error_message(e))
 
             if not settings.ALLOW_LLM_FALLBACK:
                 logger.error("ALLOW_LLM_FALLBACK is false. Raising error.")
