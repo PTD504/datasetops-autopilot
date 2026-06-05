@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 
 type UsageSummary = {
   llm_mode: string
@@ -32,6 +33,15 @@ export default function ProjectStatus() {
 
   const terminalStates = ["DONE", "FAILED", "CANCELLED", "EXPORT_READY"]
   const isFinished = terminalStates.includes(status)
+
+  const allStates = [
+    "FILES_UPLOADED", "CHUNKING", "CHUNKED", "SOURCE_ANALYZING", "SOURCE_ANALYZED",
+    "PLANNING", "WAITING_FOR_PLAN_APPROVAL", "PLAN_APPROVED", "GENERATING", "EVALUATING",
+    "WAITING_FOR_SAMPLE_REVIEW", "EXPORT_READY"
+  ]
+
+  const currentStateIndex = allStates.indexOf(status)
+  const progressValue = currentStateIndex >= 0 ? Math.max(5, ((currentStateIndex + 1) / allStates.length) * 100) : 100
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -92,12 +102,24 @@ export default function ProjectStatus() {
         <CardHeader>
           <CardTitle>Project Status</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-            <span className="font-semibold">Current State:</span>
-            <span className="px-3 py-1 bg-primary text-primary-foreground rounded-full text-sm">
-              {status}
-            </span>
+        <CardContent className="space-y-8">
+          <div className="space-y-4 bg-muted/40 p-6 rounded-xl border">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-lg">Workflow State</span>
+              <span className={`px-4 py-1.5 font-mono text-sm rounded-full ${status === 'FAILED' ? 'bg-destructive text-destructive-foreground' : status === 'CANCELLED' ? 'bg-muted-foreground text-primary-foreground' : 'bg-primary text-primary-foreground'}`}>
+                {status}
+              </span>
+            </div>
+
+            {status !== 'FAILED' && status !== 'CANCELLED' && status !== 'LOADING' && (
+              <div className="space-y-2 pt-2">
+                 <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                   <span>Start</span>
+                   <span>Export</span>
+                 </div>
+                 <Progress value={progressValue} className="h-2" />
+              </div>
+            )}
           </div>
 
           {lastError && (
@@ -108,45 +130,56 @@ export default function ProjectStatus() {
           )}
 
           {usage && (
-            <div className="p-4 bg-muted rounded-lg space-y-2 text-sm">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-semibold text-base">Usage & Budget Guard</span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${usage.budget_status === 'ok' ? 'bg-green-100 text-green-800' : usage.budget_status === 'exceeded' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                  {usage.budget_status.toUpperCase()}
+            <div className="p-6 bg-secondary/30 border border-secondary rounded-xl space-y-4">
+              <div className="flex justify-between items-center border-b border-border/50 pb-3">
+                <span className="font-semibold text-lg flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                  Agent Telemetry & Usage Guard
+                </span>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${usage.budget_status === 'ok' ? 'bg-green-100 text-green-800' : usage.budget_status === 'exceeded' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                  {usage.budget_status}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><span className="text-muted-foreground">Mode:</span> {usage.llm_mode}</div>
-                <div><span className="text-muted-foreground">Guardrails:</span> {usage.guardrails_enabled ? "Enabled" : "Disabled"}</div>
-                <div><span className="text-muted-foreground">Calls:</span> {usage.calls_used} / {usage.max_calls}</div>
-                <div><span className="text-muted-foreground">Attempts:</span> {usage.attempted_calls ?? usage.calls_used}</div>
-                <div><span className="text-muted-foreground">Failed:</span> {usage.failed_calls ?? 0}</div>
-                <div><span className="text-muted-foreground">Blocked:</span> {usage.blocked_calls ?? 0}</div>
-                <div><span className="text-muted-foreground">Tokens:</span> {usage.total_tokens_used.toLocaleString()} / {usage.max_total_tokens.toLocaleString()}</div>
-                <div><span className="text-muted-foreground">Est. Cost:</span> ${usage.estimated_cost_used.toFixed(4)} / ${usage.max_estimated_cost.toFixed(2)}</div>
-                {usage.cancel_requested && <div><span className="text-red-500 font-semibold">Cancel Requested</span></div>}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="space-y-1"><div className="text-muted-foreground text-xs uppercase">LLM Mode</div><div className="font-medium">{usage.llm_mode}</div></div>
+                <div className="space-y-1"><div className="text-muted-foreground text-xs uppercase">Guardrails</div><div className="font-medium">{usage.guardrails_enabled ? "Active" : "Disabled"}</div></div>
+                <div className="space-y-1"><div className="text-muted-foreground text-xs uppercase">API Calls</div><div className="font-medium">{usage.calls_used} / {usage.max_calls}</div></div>
+                <div className="space-y-1"><div className="text-muted-foreground text-xs uppercase">Attempts</div><div className="font-medium">{usage.attempted_calls ?? usage.calls_used}</div></div>
+                <div className="space-y-1"><div className="text-muted-foreground text-xs uppercase">Failed Calls</div><div className="font-medium text-red-500">{usage.failed_calls ?? 0}</div></div>
+                <div className="space-y-1"><div className="text-muted-foreground text-xs uppercase">Blocked Calls</div><div className="font-medium text-orange-500">{usage.blocked_calls ?? 0}</div></div>
+                <div className="space-y-1"><div className="text-muted-foreground text-xs uppercase">Tokens Used</div><div className="font-medium">{usage.total_tokens_used.toLocaleString()} / {usage.max_total_tokens.toLocaleString()}</div></div>
+                <div className="space-y-1"><div className="text-muted-foreground text-xs uppercase">Est. Cost</div><div className="font-medium">${usage.estimated_cost_used.toFixed(4)} / ${usage.max_estimated_cost.toFixed(2)}</div></div>
               </div>
+              {usage.cancel_requested && (
+                <div className="mt-4 pt-3 border-t border-border/50 text-destructive font-semibold text-sm flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-destructive animate-pulse"></span>
+                  Cancellation processing...
+                </div>
+              )}
             </div>
           )}
 
-          <div className="flex flex-col gap-4">
-            <Button
-              className="w-full"
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Link href={`/projects/${id}/plan`} className="w-full">
+              <Button className="w-full h-12" variant="outline">Review Benchmark Plan</Button>
+            </Link>
+            <Link href={`/projects/${id}/samples`} className="w-full">
+              <Button className="w-full h-12" variant="outline">Review Samples (HITL)</Button>
+            </Link>
+            <Link href={`/projects/${id}/export`} className="w-full md:col-span-2">
+              <Button className="w-full h-14 text-lg bg-primary hover:bg-primary/90" variant="default">Download Export Package</Button>
+            </Link>
+          </div>
+
+          <div className="pt-4 border-t flex justify-end">
+             <Button
               variant="destructive"
               onClick={handleStop}
-              disabled={isFinished || usage?.cancel_requested}
+              disabled={isFinished || usage?.cancel_requested || status === "LOADING"}
+              className="w-full md:w-auto px-8"
             >
-              Stop Workflow
+              {usage?.cancel_requested ? "Stopping..." : "Stop Workflow (Emergency)"}
             </Button>
-            <Link href={`/projects/${id}/plan`}>
-              <Button className="w-full" variant="outline">Review Benchmark Plan</Button>
-            </Link>
-            <Link href={`/projects/${id}/samples`}>
-              <Button className="w-full" variant="outline">Review Generated Samples</Button>
-            </Link>
-            <Link href={`/projects/${id}/export`}>
-              <Button className="w-full" variant="default">Download Export Package</Button>
-            </Link>
           </div>
         </CardContent>
       </Card>

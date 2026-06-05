@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 export default function NewProject() {
   const router = useRouter()
@@ -14,10 +16,12 @@ export default function NewProject() {
   const [request, setRequest] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
       const res = await fetch(`${apiUrl}/api/projects/`, {
@@ -58,39 +62,38 @@ export default function NewProject() {
       router.push(`/projects/${data.id}`)
     } catch (err) {
       console.error(err)
-      alert(err instanceof Error ? err.message : "Error creating project")
+      setError(err instanceof Error ? err.message : "Error creating project")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-2xl">
-      <Card>
-        <CardHeader>
-          <CardTitle>Create New Benchmark</CardTitle>
+    <div className="container mx-auto px-4 py-8 max-w-3xl">
+      <Card className="shadow-lg border-primary/10">
+        <CardHeader className="bg-muted/30 pb-6 border-b">
+          <CardTitle className="text-2xl">Create New Benchmark</CardTitle>
+          <CardDescription className="text-base">
+            Upload your source documents and describe the type of benchmark dataset you want to build. Autopilot will handle the rest.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Project Name</Label>
-              <Input id="name" required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Vietnamese Ecommerce Bot" />
+        <CardContent className="pt-8">
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="space-y-3">
+              <Label htmlFor="name" className="text-lg font-semibold">Project Name</Label>
+              <Input id="name" required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Acme Corp Technical Docs Benchmark" className="text-base py-6" />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="request">Benchmark Request</Label>
-              <Textarea
-                id="request"
-                required
-                className="h-32"
-                value={request}
-                onChange={e => setRequest(e.target.value)}
-                placeholder="Describe what kind of questions you want generated, target difficulty, and topics..."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="files">Source Documents (TXT, MD)</Label>
+            <div className="space-y-3">
+              <Label htmlFor="files" className="text-lg font-semibold">Source Documents</Label>
               <Input
                 id="files"
                 type="file"
@@ -98,13 +101,29 @@ export default function NewProject() {
                 required
                 accept=".txt,.md,.markdown,text/plain,text/markdown"
                 onChange={e => setFiles(Array.from(e.target.files || []))}
+                className="py-3 px-4 border-2 border-dashed h-20 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
               />
-              <p className="text-sm text-muted-foreground">Upload the knowledge base the RAG system will use.</p>
+              <p className="text-sm text-muted-foreground">Upload the text or markdown files representing your knowledge base (max 10MB total recommended for demo).</p>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Starting..." : "Start Autopilot Workflow"}
-            </Button>
+            <div className="space-y-3">
+              <Label htmlFor="request" className="text-lg font-semibold">Benchmark Request</Label>
+              <Textarea
+                id="request"
+                required
+                className="h-40 text-base"
+                value={request}
+                onChange={e => setRequest(e.target.value)}
+                placeholder="e.g. Generate 20 technical questions focusing on troubleshooting procedures and API usage. Include a mix of factual and reasoning questions. Target an intermediate developer audience."
+              />
+              <p className="text-sm text-muted-foreground">Describe the goals, topics, difficulty, and format of the benchmark you need.</p>
+            </div>
+
+            <div className="pt-4 border-t">
+              <Button type="submit" size="lg" className="w-full text-lg h-14 rounded-xl" disabled={loading}>
+                {loading ? "Starting Autopilot Workflow..." : "Start Autopilot Workflow"}
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
