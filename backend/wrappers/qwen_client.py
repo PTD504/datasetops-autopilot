@@ -130,54 +130,105 @@ class QwenClient:
             }
         elif "evaluate" in lower_prompt or "score" in lower_prompt or "evaluation" in lower_prompt:
             # Deterministic evaluation based on the question to simulate pass, repair, human_review, reject
+
+            is_unanswerable = "sample type: unanswerable" in lower_prompt
+            is_multi_hop = "sample type: multi_hop" in lower_prompt
+            is_edge_case = "sample type: edge_case" in lower_prompt
+
             if "hoàn tiền" in lower_prompt and "14 ngày" not in lower_prompt:
                  # Trigger repair once
                  return {
-                    "grounding_score": 0.5,
-                    "answerability_score": 0.8,
+                    "faithfulness_score": 0.5,
+                    "answer_relevance_score": 0.8,
+                    "context_precision_score": 0.8,
+                    "context_recall_score": 0.5,
+                    "hallucination_risk_score": 0.1,
+                    "answerability_score": 0.9,
                     "clarity_score": 0.9,
-                    "difficulty_score": 0.5,
-                    "language_score": 0.9,
-                    "overall_score": 0.6,
+                    "difficulty_match_score": 0.8,
+                    "overall_score": 0.65,
                     "decision": "repair",
                     "issues": ["Answer lacks specific details about the 14-day limit."],
                     "evaluator_notes": "Needs repair.",
                     "repair_instruction": "Include the 14-day time limit mentioned in the source."
                 }
-            elif "campuchia" in lower_prompt:
+            elif is_edge_case and "campuchia" in lower_prompt:
                 # Trigger human review
                  return {
-                    "grounding_score": 0.7,
+                    "faithfulness_score": 0.8,
+                    "answer_relevance_score": 0.7,
+                    "context_precision_score": 0.8,
+                    "context_recall_score": 0.6,
+                    "hallucination_risk_score": 0.4,
                     "answerability_score": 0.7,
-                    "clarity_score": 0.8,
-                    "difficulty_score": 0.8,
-                    "language_score": 0.9,
+                    "clarity_score": 0.6,
+                    "difficulty_match_score": 0.9,
                     "overall_score": 0.75,
                     "decision": "human_review",
                     "issues": ["Uncertain if this is a trick question or valid hard question."],
                     "evaluator_notes": "Sending to human review.",
-                    "repair_instruction": ""
+                    "repair_instruction": "Clarify the boundary condition."
                 }
             elif "reject me" in lower_prompt:
                  return {
-                    "grounding_score": 0.1,
+                    "faithfulness_score": 0.1,
+                    "answer_relevance_score": 0.1,
+                    "context_precision_score": 0.1,
+                    "context_recall_score": 0.1,
+                    "hallucination_risk_score": 0.9,
                     "answerability_score": 0.1,
                     "clarity_score": 0.1,
-                    "difficulty_score": 0.1,
-                    "language_score": 0.1,
+                    "difficulty_match_score": 0.1,
                     "overall_score": 0.1,
                     "decision": "reject",
                     "issues": ["Completely off-topic or hallucinated."],
                     "evaluator_notes": "Rejecting this sample.",
                     "repair_instruction": ""
                 }
+            elif is_unanswerable:
+                # Mock a passing unanswerable
+                return {
+                    "faithfulness_score": 1.0,
+                    "answer_relevance_score": 1.0,
+                    "context_precision_score": 1.0,
+                    "context_recall_score": 1.0,
+                    "hallucination_risk_score": 0.0,
+                    "answerability_score": 0.1,
+                    "clarity_score": 0.9,
+                    "difficulty_match_score": 0.9,
+                    "overall_score": 0.95,
+                    "decision": "pass",
+                    "issues": [],
+                    "evaluator_notes": "Correctly identified as unanswerable.",
+                    "repair_instruction": ""
+                }
+            elif is_multi_hop and "source_chunk_ids" in lower_prompt and lower_prompt.count("chunk_") < 2:
+                # Mock a penalty for missing chunks
+                 return {
+                    "faithfulness_score": 0.6,
+                    "answer_relevance_score": 0.8,
+                    "context_precision_score": 0.9,
+                    "context_recall_score": 0.4,
+                    "hallucination_risk_score": 0.2,
+                    "answerability_score": 0.9,
+                    "clarity_score": 0.8,
+                    "difficulty_match_score": 0.8,
+                    "overall_score": 0.65,
+                    "decision": "repair",
+                    "issues": ["Answer relies on single source for a multi-hop question."],
+                    "evaluator_notes": "Needs more evidence chunks.",
+                    "repair_instruction": "Add a second evidence chunk about payment method because this is a multi-hop sample."
+                }
 
             return {
-                "grounding_score": 0.9,
+                "faithfulness_score": 0.9,
+                "answer_relevance_score": 0.9,
+                "context_precision_score": 0.9,
+                "context_recall_score": 0.9,
+                "hallucination_risk_score": 0.1,
                 "answerability_score": 0.9,
                 "clarity_score": 0.9,
-                "difficulty_score": 0.5,
-                "language_score": 0.9,
+                "difficulty_match_score": 0.9,
                 "overall_score": 0.9,
                 "decision": "pass",
                 "issues": [],

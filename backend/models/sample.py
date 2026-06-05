@@ -35,6 +35,12 @@ class Evaluation(Base):
     clarity_score = Column(Float)
     difficulty_score = Column(Float)
     language_score = Column(Float)
+    faithfulness_score = Column(Float)
+    answer_relevance_score = Column(Float)
+    context_precision_score = Column(Float)
+    context_recall_score = Column(Float)
+    hallucination_risk_score = Column(Float)
+    difficulty_match_score = Column(Float)
     overall_score = Column(Float)
     decision = Column(String) # pass, repair, human_review, reject
     issues = Column(JSON)

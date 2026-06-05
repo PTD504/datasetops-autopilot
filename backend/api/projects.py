@@ -330,7 +330,31 @@ def approve_plan(project_id: str, background_tasks: BackgroundTasks, db: Session
 
 @router.get("/{project_id}/samples")
 def get_samples(project_id: str, status: str = None, db: Session = Depends(get_db)):
+    from backend.models.sample import Evaluation
     query = db.query(Sample).filter(Sample.project_id == project_id)
     if status:
         query = query.filter(Sample.status == status)
-    return query.all()
+
+    samples = query.all()
+    results = []
+
+    for s in samples:
+        latest_eval = db.query(Evaluation).filter(Evaluation.sample_id == s.id).order_by(Evaluation.created_at.desc()).first()
+        s_dict = {
+            "id": s.id,
+            "category": s.category,
+            "difficulty": s.difficulty,
+            "sample_type": s.sample_type,
+            "question": s.question,
+            "expected_answer": s.expected_answer,
+            "status": s.status.value,
+            "overall_score": latest_eval.overall_score if latest_eval else None,
+            "decision": latest_eval.decision if latest_eval else None,
+            "faithfulness_score": latest_eval.faithfulness_score if latest_eval else None,
+            "answer_relevance_score": latest_eval.answer_relevance_score if latest_eval else None,
+            "hallucination_risk_score": latest_eval.hallucination_risk_score if latest_eval else None,
+            "issues": latest_eval.issues if latest_eval else []
+        }
+        results.append(s_dict)
+
+    return results
