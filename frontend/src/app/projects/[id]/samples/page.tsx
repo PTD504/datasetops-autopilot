@@ -11,6 +11,7 @@ interface SampleData {
   id: string;
   category: string;
   difficulty: string;
+  sample_type: string;
   question: string;
   expected_answer: string;
   status: string;
@@ -61,7 +62,7 @@ export default function SamplesReview() {
               <TableHeader className="bg-muted/50">
                 <TableRow>
                   <TableHead className="w-[120px]">Status</TableHead>
-                  <TableHead className="w-[150px]">Category</TableHead>
+                  <TableHead className="w-[180px]">Category / Type</TableHead>
                   <TableHead className="w-[100px]">Difficulty</TableHead>
                   <TableHead className="min-w-[250px]">Question</TableHead>
                   <TableHead className="min-w-[250px]">Expected Answer</TableHead>
@@ -72,7 +73,12 @@ export default function SamplesReview() {
                 {samples.map((s) => (
                   <TableRow key={s.id} className="group hover:bg-muted/30 transition-colors">
                     <TableCell className="font-medium">{getStatusBadge(s.status)}</TableCell>
-                    <TableCell className="text-sm">{s.category}</TableCell>
+                    <TableCell className="text-sm">
+                      <div>{s.category}</div>
+                      <Badge variant="outline" className="text-[10px] mt-1 bg-muted/50 font-normal">
+                        {s.sample_type || 'single_hop'}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-sm">
                       <Badge variant="outline" className="font-normal text-xs">{s.difficulty}</Badge>
                     </TableCell>

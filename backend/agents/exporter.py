@@ -33,6 +33,7 @@ class ExportReportAgent(BaseAgent):
             for s in samples:
                 fe.write(json.dumps({
                     "id": s.id,
+                    "sample_type": s.sample_type,
                     "question": s.question,
                     "source_chunk_ids": s.source_chunk_ids
                 }) + "\n")
@@ -52,12 +53,21 @@ class ExportReportAgent(BaseAgent):
             f.write(f"**Total Samples:** {len(samples)}\n\n")
 
             difficulty_counts = {}
+            sample_type_counts = {}
             for s in samples:
                 diff = s.difficulty if s.difficulty else "unknown"
                 difficulty_counts[diff] = difficulty_counts.get(diff, 0) + 1
+
+                stype = s.sample_type if s.sample_type else "unknown"
+                sample_type_counts[stype] = sample_type_counts.get(stype, 0) + 1
+
             f.write(f"**Difficulty Distribution:**\n")
             for diff, count in difficulty_counts.items():
                 f.write(f"- {diff.capitalize()}: {count}\n")
+
+            f.write(f"\n**Sample Type Distribution:**\n")
+            for stype, count in sample_type_counts.items():
+                f.write(f"- {stype}: {count}\n")
 
             f.write(f"\n**Limitations:**\n")
             f.write(f"- This is an auto-generated benchmark.\n")
@@ -83,6 +93,16 @@ class ExportReportAgent(BaseAgent):
             f.write(f"- **Human Review Samples:** {len(human_review_samples)}\n")
             f.write(f"- **Rejected Samples:** {len(rejected_samples)}\n")
             f.write(f"- **Average Quality Score:** {avg_score}\n\n")
+
+            f.write(f"## Sample Types (Passed)\n")
+            st_counts = {}
+            for s in passed_samples:
+                st = s.sample_type if s.sample_type else "unknown"
+                st_counts[st] = st_counts.get(st, 0) + 1
+            for st, count in st_counts.items():
+                f.write(f"- {st}: {count}\n")
+            f.write("\n")
+
             f.write(f"## Common Issues\n")
             f.write(f"- Minor grounding issues requiring repair.\n")
             f.write(f"- Some edge case questions marked for human review.\n\n")

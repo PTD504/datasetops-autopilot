@@ -21,6 +21,6 @@ The core logic is driven by a set of specialized agents:
 
 *   **IntakePlannerAgent**: Analyzes the initial user request and creates a structured benchmark plan.
 *   **SourceUnderstandingAgent**: Analyzes uploaded documents to summarize their contents and warn about potential issues (e.g., lack of diversity).
-*   **BenchmarkGeneratorAgent**: Generates RAG question-answer pairs based on the retrieved document chunks and the benchmark plan. It can also operate in a "repair" mode to fix failing samples.
+*   **BenchmarkGeneratorAgent**: Generates RAG question-answer pairs (supporting `single_hop`, `multi_hop`, `unanswerable`, and `edge_case` sample types) based on the retrieved document chunks and the benchmark plan. It can also operate in a "repair" mode to fix failing samples.
 *   **QualityEvaluatorAgent**: Evaluates generated samples against criteria (grounding, answerability, clarity) and decides whether they pass, need repair, or require human review.
 *   **ExportReportAgent**: Compiles the approved samples into the final deliverable formats (`jsonl`, `md`, `zip`) and uploads them to OSS.

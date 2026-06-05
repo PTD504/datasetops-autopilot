@@ -12,6 +12,7 @@ class Sample(Base):
     project_id = Column(String, ForeignKey("projects.id"))
     category = Column(String)
     difficulty = Column(String)
+    sample_type = Column(String, default="single_hop")
     question = Column(Text, nullable=False)
     expected_answer = Column(Text, nullable=False)
     source_chunk_ids = Column(JSON) # list of string IDs

@@ -11,16 +11,16 @@
 
 5. **Approve Plan**: Review the generated benchmark plan. The plan should accurately reflect a 30-sample Vietnamese benchmark across the requested categories. Click "Approve Plan".
 
-6. **Generate & Evaluate**: Wait a moment while the generator and evaluator agents create and score samples. Show that samples include various difficulties and pass/repair/human review flags.
+6. **Generate & Evaluate**: Wait a moment while the generator and evaluator agents create and score samples. Show that samples include various difficulties, explicitly formatted sample types (`single_hop`, `multi_hop`, `unanswerable`, `edge_case`), and pass/repair/human review flags.
 
 7. **Review Uncertain Sample**: Identify at least one sample flagged for "Human Review" (e.g., questions related to shipping to Cambodia). Show the interface where a human could approve or reject the sample based on the evaluator's feedback.
 
 8. **Export ZIP**: Once all samples are generated and processed, click the "Export" button to generate the final artifacts.
 
 9. **Show Generated Files**: Download and extract the `export.zip` file. Show the contents:
-   - `rag_eval.jsonl` and `answer_key.jsonl` containing the samples.
-   - `dataset_card.md` summarizing the benchmark intent, sample counts, and categories.
-   - `quality_report.md` detailing the number of passed/repaired/rejected samples and overall mock metrics.
+   - `rag_eval.jsonl` and `answer_key.jsonl` containing the samples and explicitly tracked sample types.
+   - `dataset_card.md` summarizing the benchmark intent, sample counts, types, and categories.
+   - `quality_report.md` detailing the number of passed/repaired/rejected samples, type distribution, and overall mock metrics.
 
 10. **Alibaba Proof**: Briefly mention that a separate recording provides proof of Alibaba ECS deployment and native Qwen/OSS API usage.
 

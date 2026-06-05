@@ -77,6 +77,13 @@ def test_full_mock_workflow():
         assert os.path.exists(os.path.join(export_dir, "rag_eval.jsonl"))
         assert os.path.exists(os.path.join(export_dir, "answer_key.jsonl"))
         assert os.path.exists(os.path.join(export_dir, "export.zip"))
+
+        with open(os.path.join(export_dir, "rag_eval.jsonl"), "r") as f:
+            lines = f.readlines()
+            assert len(lines) > 0
+            import json
+            first_sample = json.loads(lines[0])
+            assert "sample_type" in first_sample
     finally:
         export_dir = f"backend/exports/{project_id}"
         if os.path.exists(export_dir):
