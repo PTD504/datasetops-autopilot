@@ -58,16 +58,18 @@ class QualityEvaluatorAgent(BaseAgent):
 
         is_unanswerable = sample.sample_type == "unanswerable"
 
-        if faithfulness_score < 0.50 or (not is_unanswerable and answerability_score < 0.50) or hallucination_risk_score > 0.70:
-            decision = "reject"
-            status = SampleStatus.REJECTED
-            needs_repair = False
-        elif overall_score >= 0.80 and faithfulness_score >= 0.85 and answer_relevance_score >= 0.75 and hallucination_risk_score <= 0.25:
-            decision = "pass"
-            status = SampleStatus.APPROVED
-            needs_repair = False
-        elif 0.60 <= overall_score < 0.80 or faithfulness_score < 0.85:
-            if sample.retry_count < 2: # max retries = 2
+        if is_unanswerable:
+            # For intentional unanswerable, we don't demand high answer_relevance since the point is not to answer it.
+            # We also don't demand high overall generic score which might be low due to zero answerability.
+            if hallucination_risk_score <= 0.25 and faithfulness_score >= 0.85:
+                decision = "pass"
+                status = SampleStatus.APPROVED
+                needs_repair = False
+            elif hallucination_risk_score > 0.70 or faithfulness_score < 0.50:
+                 decision = "reject"
+                 status = SampleStatus.REJECTED
+                 needs_repair = False
+            elif sample.retry_count < 2:
                 decision = "repair"
                 status = SampleStatus.REPAIRING
                 needs_repair = True
@@ -76,9 +78,27 @@ class QualityEvaluatorAgent(BaseAgent):
                 status = SampleStatus.HUMAN_REVIEW
                 needs_repair = False
         else:
-            decision = "human_review"
-            status = SampleStatus.HUMAN_REVIEW
-            needs_repair = False
+            if faithfulness_score < 0.50 or answerability_score < 0.50 or hallucination_risk_score > 0.70:
+                decision = "reject"
+                status = SampleStatus.REJECTED
+                needs_repair = False
+            elif overall_score >= 0.80 and faithfulness_score >= 0.85 and answer_relevance_score >= 0.75 and hallucination_risk_score <= 0.25:
+                decision = "pass"
+                status = SampleStatus.APPROVED
+                needs_repair = False
+            elif 0.60 <= overall_score < 0.80 or faithfulness_score < 0.85:
+                if sample.retry_count < 2: # max retries = 2
+                    decision = "repair"
+                    status = SampleStatus.REPAIRING
+                    needs_repair = True
+                else:
+                    decision = "human_review"
+                    status = SampleStatus.HUMAN_REVIEW
+                    needs_repair = False
+            else:
+                decision = "human_review"
+                status = SampleStatus.HUMAN_REVIEW
+                needs_repair = False
 
         evaluation = Evaluation(
             sample_id=sample.id,

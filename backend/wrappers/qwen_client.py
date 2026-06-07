@@ -109,13 +109,15 @@ class QwenClient:
         is_vietnamese_demo = "vietnamese rag benchmark" in lower_prompt or "vietnamese" in lower_prompt
 
         if "plan" in lower_prompt or "benchmark request" in lower_prompt:
+            quality_rules_mock = ["Answerable samples must be grounded in the source documents. Intentional unanswerable samples are allowed when clearly labeled as unanswerable and the expected answer states that the documents do not contain enough information."]
+
             if is_vietnamese_demo:
                 return {
                     "goal": "Evaluate whether a customer support chatbot can answer refund, shipping, warranty, cancellation, and payment questions based on the Vietnamese ecommerce policy documents.",
                     "language": "Vietnamese",
                     "sample_count": {"total": 30, "easy": 10, "medium": 10, "hard": 10},
                     "categories": ["refund policy", "shipping policy", "warranty", "order cancellation", "payment policy"],
-                    "quality_rules": ["Questions must be in natural Vietnamese.", "Answers must be grounded in the provided source documents."],
+                    "quality_rules": ["Questions must be in natural Vietnamese.", quality_rules_mock[0]],
                     "source_summary": "Vietnamese ecommerce policy documents covering refunds, shipping, warranty, cancellations, and payments.",
                     "source_warnings": []
                 }
@@ -124,7 +126,7 @@ class QwenClient:
                 "language": "English",
                 "sample_count": {"total": 5, "easy": 2, "medium": 2, "hard": 1},
                 "categories": ["general", "specific"],
-                "quality_rules": ["Must be grounded in source."],
+                "quality_rules": quality_rules_mock,
                 "source_summary": "Test source documents.",
                 "source_warnings": []
             }

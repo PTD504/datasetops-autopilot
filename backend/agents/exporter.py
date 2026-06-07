@@ -74,6 +74,7 @@ class ExportReportAgent(BaseAgent):
 
             f.write(f"\n**Limitations:**\n")
             f.write(f"- This is an auto-generated benchmark.\n")
+            f.write(f"- The final exported files (jsonl) intentionally contain only explicitly 'APPROVED' samples. This includes valid, verified `unanswerable` sample types.\n")
             f.write(f"- May require further human review for production use.\n")
 
         # 3. quality_report.md
