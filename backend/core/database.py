@@ -40,6 +40,28 @@ def ensure_project_cancel_columns():
     except Exception as e:
         print(f"Error checking/adding sample columns: {e}")
 
+    try:
+        eval_columns = {column["name"] for column in inspector.get_columns("evaluations")}
+        eval_additions = []
+        new_eval_cols = [
+            "faithfulness_score",
+            "answer_relevance_score",
+            "context_precision_score",
+            "context_recall_score",
+            "hallucination_risk_score",
+            "difficulty_match_score"
+        ]
+        for col in new_eval_cols:
+            if col not in eval_columns:
+                eval_additions.append(col)
+        
+        if eval_additions:
+            with engine.begin() as connection:
+                for col in eval_additions:
+                    connection.execute(text(f"ALTER TABLE evaluations ADD COLUMN {col} DOUBLE PRECISION"))
+    except Exception as e:
+        print(f"Error checking/adding evaluation columns: {e}")
+
 def get_db():
     db = SessionLocal()
     try:
