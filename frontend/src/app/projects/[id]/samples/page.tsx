@@ -78,29 +78,57 @@ export default function SamplesReview() {
               <TableBody>
                 {samples.map((s) => (
                   <TableRow key={s.id} className="group hover:bg-muted/30 transition-colors">
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium align-top">
                       <div className="flex flex-col gap-1 items-start">
                         {getStatusBadge(s.status)}
                         {s.overall_score != null && (
-                          <div className="text-[10px] text-muted-foreground mt-1" title={`Decision: ${s.decision}\nFaithfulness: ${s.faithfulness_score}\nAnswer Rel: ${s.answer_relevance_score}\nHallucination Risk: ${s.hallucination_risk_score}`}>
-                            Score: {(s.overall_score * 100).toFixed(0)}%
-                            <br />
-                            <span className="opacity-70 truncate max-w-[120px] inline-block">{s.decision}</span>
+                          <div className="text-xs text-muted-foreground mt-1 bg-muted/20 p-2 rounded w-full">
+                            <div className="font-semibold mb-1">Metrics:</div>
+                            <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                              <span title="Faithfulness: whether the answer is supported by evidence">Faith: {s.faithfulness_score}</span>
+                              <span title="Answer relevance: whether the answer directly answers the question">Rel: {s.answer_relevance_score}</span>
+                              <span title="Hallucination risk: risk of unsupported claims">Halluc: {s.hallucination_risk_score}</span>
+                              <span className="font-bold">Score: {(s.overall_score * 100).toFixed(0)}%</span>
+                            </div>
+                            <div className="mt-1 font-semibold text-[10px] uppercase opacity-70 border-t pt-1 border-muted-foreground/20">
+                              Decision: {s.decision}
+                            </div>
                           </div>
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">
-                      <div>{s.category}</div>
-                      <Badge variant="outline" className="text-[10px] mt-1 bg-muted/50 font-normal">
+                    <TableCell className="text-sm align-top">
+                      <div className="font-medium mb-1">{s.category}</div>
+                      <Badge variant="outline" className="text-[10px] bg-muted/50 font-normal cursor-help"
+                        title={
+                          s.sample_type === 'single_hop' ? 'single_hop — answerable from one evidence chunk' :
+                          s.sample_type === 'multi_hop' ? 'multi_hop — requires combining multiple evidence chunks' :
+                          s.sample_type === 'unanswerable' ? 'unanswerable — intentionally checks if a RAG system refuses unsupported questions' :
+                          s.sample_type === 'edge_case' ? 'edge_case — tests policy boundaries or ambiguous cases' :
+                          'unknown sample type'
+                        }>
                         {s.sample_type || 'single_hop'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="text-sm align-top">
                       <Badge variant="outline" className="font-normal text-xs">{s.difficulty}</Badge>
                     </TableCell>
-                    <TableCell className="text-sm max-w-[250px] truncate group-hover:whitespace-normal group-hover:break-words group-hover:bg-background/95 transition-all group-hover:absolute group-hover:z-10 group-hover:border group-hover:shadow-lg group-hover:p-4 group-hover:rounded-md" title={s.question}>{s.question}</TableCell>
-                    <TableCell className="text-sm max-w-[250px] truncate group-hover:whitespace-normal group-hover:break-words group-hover:bg-background/95 transition-all group-hover:absolute group-hover:z-10 group-hover:border group-hover:shadow-lg group-hover:p-4 group-hover:rounded-md group-hover:ml-[250px]" title={s.expected_answer}>{s.expected_answer}</TableCell>
+                    <TableCell className="text-sm align-top">
+                      <div className="max-w-[250px]">{s.question}</div>
+                    </TableCell>
+                    <TableCell className="text-sm align-top">
+                      <div className="max-w-[250px]">{s.expected_answer}</div>
+                      {(s.status === 'HUMAN_REVIEW' || s.status === 'REJECTED') && s.issues && s.issues.length > 0 && (
+                        <div className="mt-3 p-2 bg-red-50 border border-red-100 rounded text-red-800 text-xs shadow-sm">
+                          <div className="font-bold mb-1 uppercase tracking-wider text-[10px]">Evaluator Notes / Issues:</div>
+                          <ul className="list-disc pl-4 space-y-1">
+                            {s.issues.map((issue, i) => (
+                              <li key={i}>{issue}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                          <Button size="sm" variant="outline" className="opacity-50" disabled title="Coming soon">Edit</Button>
