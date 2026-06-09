@@ -32,6 +32,18 @@ interface TraceData {
   created_at: string
 }
 
+function getTracePrefix(trace: TraceData) {
+  const isToolAction = ["tool", "chunk", "parse"].some(keyword =>
+    trace.action.toLowerCase().includes(keyword)
+  )
+
+  if (isToolAction) return "[Tool]"
+  if (!trace.agent_name || trace.agent_name === "System") return "[System]"
+
+  const agentLabel = trace.agent_name.replace(/Agent$/, "")
+  return `[${agentLabel}]`
+}
+
 export default function ProjectStatus() {
   const params = useParams()
   const id = params.id as string
@@ -208,14 +220,7 @@ export default function ProjectStatus() {
             {traces.length === 0 ? (
               <div className="text-gray-500 italic">No traces available yet...</div>
             ) : (
-              traces.map((trace, idx) => {
-                let prefix = "[System]"
-                if (trace.agent_name && trace.agent_name !== "System") {
-                  prefix = `[Agent:${trace.agent_name}]`
-                } else if (trace.action && trace.action.includes("tool") || trace.action.includes("chunk") || trace.action.includes("parse")) {
-                  prefix = "[Tool]"
-                }
-
+              traces.map(trace => {
                 // Make the message human-readable
                 let msg = trace.action
                 if (trace.action === "start_source_analysis") msg = "SourceUnderstandingAgent analyzing document coverage."
@@ -232,24 +237,32 @@ export default function ProjectStatus() {
                 else if (trace.action === "export_complete") msg = `Export package ready. Included ${trace.details?.file_count || 0} files.`
 
                 return (
-                  <div key={idx} className="flex space-x-2 border-b border-gray-800 pb-1">
-                    <span className="text-gray-500 w-24 flex-shrink-0">
+                  <div
+                    key={trace.id}
+                    className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 border-b border-gray-800 py-2 sm:grid-cols-[5.5rem_13rem_minmax(0,1fr)]"
+                  >
+                    <span className="row-span-2 text-gray-500 sm:row-span-1">
                       {new Date(trace.created_at).toLocaleTimeString()}
                     </span>
-                    <span className="text-blue-400 w-32 flex-shrink-0 font-bold">
-                      {prefix}
+                    <span
+                      className="min-w-0 break-words font-bold text-blue-400 sm:overflow-hidden sm:text-ellipsis sm:whitespace-nowrap"
+                      title={trace.agent_name || "System"}
+                    >
+                      {getTracePrefix(trace)}
                     </span>
-                    <span>{msg}</span>
+                    <span className="col-start-2 min-w-0 whitespace-pre-wrap break-words text-green-400 sm:col-start-3">
+                      {msg}
+                    </span>
                   </div>
                 )
               })
             )}
             {/* Add computed final states if export is ready */}
             {status === "EXPORT_READY" && (
-                <div className="flex space-x-2 pt-2 border-t border-green-800/50 text-green-300">
-                    <span className="w-24 flex-shrink-0 text-gray-500">{new Date().toLocaleTimeString()}</span>
-                    <span className="w-32 flex-shrink-0 font-bold text-blue-400">[System]</span>
-                    <span>Workflow completed successfully. Export package is ready.</span>
+                <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 border-t border-green-800/50 py-2 text-green-300 sm:grid-cols-[5.5rem_13rem_minmax(0,1fr)]">
+                    <span className="row-span-2 text-gray-500 sm:row-span-1">{new Date().toLocaleTimeString()}</span>
+                    <span className="font-bold text-blue-400">[System]</span>
+                    <span className="col-start-2 min-w-0 whitespace-pre-wrap break-words sm:col-start-3">Workflow completed successfully. Export package is ready.</span>
                 </div>
             )}
           </div>
