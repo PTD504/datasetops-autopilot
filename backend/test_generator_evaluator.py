@@ -46,5 +46,40 @@ def test_pipeline():
     print("Generator and Evaluator Agents test passed")
     db.close()
 
+def test_unanswerable_sample_passes():
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+
+    project_id = str(uuid.uuid4())
+    project = Project(id=project_id, name="Test Unanswerable", benchmark_request="Make a test")
+    db.add(project)
+    db.commit()
+
+    from backend.models import Sample
+    sample = Sample(
+        project_id=project_id,
+        category="general",
+        difficulty="medium",
+        sample_type="unanswerable",
+        question="What is the speed of a hypothetical mock turtle?",
+        expected_answer="Not enough information in the document.",
+        source_chunk_ids=["mock_chunk"]
+    )
+    db.add(sample)
+    db.commit()
+
+    evaluator = QualityEvaluatorAgent(db, project_id)
+
+    # Note: _get_mock_response will see "sample type: unanswerable" because the prompt in evaluator.py contains "Sample Type: {sample.sample_type}"
+    eval_result, needs_repair = evaluator.evaluate(sample)
+
+    assert needs_repair is False
+    assert eval_result.decision == "pass"
+    assert sample.status.value == "APPROVED"
+
+    print("Unanswerable test passed")
+    db.close()
+
 if __name__ == "__main__":
     test_pipeline()
+    test_unanswerable_sample_passes()

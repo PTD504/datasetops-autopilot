@@ -15,3 +15,5 @@ Before finalizing the submission for the Qwen Cloud Global Hackathon, ensure all
 - [ ] **No secrets committed:** The repository has been thoroughly checked to ensure no hardcoded API keys or secrets are committed.
 - [ ] **App can run locally with mock mode:** The deterministic local fallback flow (`MOCK_LLM=true`, `STORAGE_MODE=local`) works perfectly without credentials.
 - [ ] **App can run with real Qwen + OSS configuration:** The production flow (`MOCK_LLM=false`, `STORAGE_MODE=oss`) works flawlessly when provided with real credentials.
+- [x] **Phase 7A Completed:** Advanced sample types implemented.
+- [x] **Phase 7B Completed:** Evaluator agent upgraded to use RAG-specific quality metrics.

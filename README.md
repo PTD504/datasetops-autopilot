@@ -10,6 +10,7 @@ A Qwen-powered autonomous workflow agent that converts raw source documents plus
 * Sample generation, validation, and evaluation via Qwen Cloud.
 * Bounded repair loops for low-quality samples.
 * Generates explicitly formatted benchmark sample types (`single_hop`, `multi_hop`, `unanswerable`, `edge_case`).
+* High-quality Evaluation Agent producing explicit metrics (faithfulness, answer relevance, context precision, hallucination risk).
 * Human-in-the-loop plan and sample review.
 * Full integration with Alibaba Cloud OSS for artifact storage.
 

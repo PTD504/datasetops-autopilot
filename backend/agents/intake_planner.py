@@ -31,7 +31,7 @@ class IntakePlannerAgent(BaseAgent):
             language=response.get("language", "English"),
             sample_count=response.get("sample_count", {"total": 10, "easy": 5, "medium": 3, "hard": 2}),
             categories=response.get("categories", ["General"]),
-            quality_rules=response.get("quality_rules", ["Must be grounded"]),
+            quality_rules=response.get("quality_rules", ["Answerable samples must be grounded in the source documents. Intentional unanswerable samples are allowed when clearly labeled as unanswerable and the expected answer states that the documents do not contain enough information."]),
             source_summary=source_summary,
             source_warnings=source_warnings
         )

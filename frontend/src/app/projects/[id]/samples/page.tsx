@@ -15,6 +15,12 @@ interface SampleData {
   question: string;
   expected_answer: string;
   status: string;
+  overall_score?: number | null;
+  decision?: string | null;
+  faithfulness_score?: number | null;
+  answer_relevance_score?: number | null;
+  hallucination_risk_score?: number | null;
+  issues?: string[];
 }
 
 export default function SamplesReview() {
@@ -61,18 +67,29 @@ export default function SamplesReview() {
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableHead className="w-[120px]">Status</TableHead>
+                  <TableHead className="w-[140px]">Status / Eval</TableHead>
                   <TableHead className="w-[180px]">Category / Type</TableHead>
                   <TableHead className="w-[100px]">Difficulty</TableHead>
-                  <TableHead className="min-w-[250px]">Question</TableHead>
-                  <TableHead className="min-w-[250px]">Expected Answer</TableHead>
+                  <TableHead className="min-w-[200px]">Question</TableHead>
+                  <TableHead className="min-w-[200px]">Expected Answer</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {samples.map((s) => (
                   <TableRow key={s.id} className="group hover:bg-muted/30 transition-colors">
-                    <TableCell className="font-medium">{getStatusBadge(s.status)}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col gap-1 items-start">
+                        {getStatusBadge(s.status)}
+                        {s.overall_score != null && (
+                          <div className="text-[10px] text-muted-foreground mt-1" title={`Decision: ${s.decision}\nFaithfulness: ${s.faithfulness_score}\nAnswer Rel: ${s.answer_relevance_score}\nHallucination Risk: ${s.hallucination_risk_score}`}>
+                            Score: {(s.overall_score * 100).toFixed(0)}%
+                            <br />
+                            <span className="opacity-70 truncate max-w-[120px] inline-block">{s.decision}</span>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-sm">
                       <div>{s.category}</div>
                       <Badge variant="outline" className="text-[10px] mt-1 bg-muted/50 font-normal">
@@ -82,8 +99,8 @@ export default function SamplesReview() {
                     <TableCell className="text-sm">
                       <Badge variant="outline" className="font-normal text-xs">{s.difficulty}</Badge>
                     </TableCell>
-                    <TableCell className="text-sm max-w-[300px] truncate group-hover:whitespace-normal group-hover:break-words group-hover:bg-background/95 transition-all group-hover:absolute group-hover:z-10 group-hover:border group-hover:shadow-lg group-hover:p-4 group-hover:rounded-md" title={s.question}>{s.question}</TableCell>
-                    <TableCell className="text-sm max-w-[300px] truncate group-hover:whitespace-normal group-hover:break-words group-hover:bg-background/95 transition-all group-hover:absolute group-hover:z-10 group-hover:border group-hover:shadow-lg group-hover:p-4 group-hover:rounded-md group-hover:ml-[300px]" title={s.expected_answer}>{s.expected_answer}</TableCell>
+                    <TableCell className="text-sm max-w-[250px] truncate group-hover:whitespace-normal group-hover:break-words group-hover:bg-background/95 transition-all group-hover:absolute group-hover:z-10 group-hover:border group-hover:shadow-lg group-hover:p-4 group-hover:rounded-md" title={s.question}>{s.question}</TableCell>
+                    <TableCell className="text-sm max-w-[250px] truncate group-hover:whitespace-normal group-hover:break-words group-hover:bg-background/95 transition-all group-hover:absolute group-hover:z-10 group-hover:border group-hover:shadow-lg group-hover:p-4 group-hover:rounded-md group-hover:ml-[250px]" title={s.expected_answer}>{s.expected_answer}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                          <Button size="sm" variant="outline" className="opacity-50" disabled title="Coming soon">Edit</Button>

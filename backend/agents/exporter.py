@@ -1,7 +1,7 @@
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from .base import BaseAgent
-from backend.models import Project, Sample, BenchmarkPlan, Export
+from backend.models import Project, Sample, BenchmarkPlan, Export, Evaluation
 from backend.models.enums import SampleStatus
 from backend.wrappers.oss_client import AlibabaOSSClient
 import json
@@ -69,30 +69,70 @@ class ExportReportAgent(BaseAgent):
             for stype, count in sample_type_counts.items():
                 f.write(f"- {stype}: {count}\n")
 
+            f.write(f"\n**Quality Evaluation:**\n")
+            f.write(f"Samples were evaluated using RAG-specific quality metrics including faithfulness, answer relevance, context precision, and hallucination risk.\n\n")
+
             f.write(f"\n**Limitations:**\n")
             f.write(f"- This is an auto-generated benchmark.\n")
+            f.write(f"- The final exported files (jsonl) intentionally contain only explicitly 'APPROVED' samples. This includes valid, verified `unanswerable` sample types.\n")
             f.write(f"- May require further human review for production use.\n")
 
         # 3. quality_report.md
         all_samples_in_db = self.db.query(Sample).filter(Sample.project_id == self.project_id).all()
+        sample_ids = [s.id for s in all_samples_in_db]
+
         passed_samples = [s for s in all_samples_in_db if s.status == SampleStatus.APPROVED]
         repaired_samples = [s for s in all_samples_in_db if s.retry_count > 0]
         human_review_samples = [s for s in all_samples_in_db if s.status == SampleStatus.HUMAN_REVIEW]
         rejected_samples = [s for s in all_samples_in_db if s.status == SampleStatus.REJECTED]
 
-        avg_score = 0
-        if passed_samples:
-            avg_score = 0.9 # Using a mock average score for MVP since actual eval scores aren't easily aggregated from db in this simple model
+        # Fetch latest evaluation for each sample
+        evals = []
+        for sid in sample_ids:
+            latest_eval = self.db.query(Evaluation).filter(Evaluation.sample_id == sid).order_by(Evaluation.created_at.desc()).first()
+            if latest_eval:
+                evals.append(latest_eval)
+
+        avg_overall = 0.0
+        avg_faithfulness = 0.0
+        avg_answer_relevance = 0.0
+        avg_context_precision = 0.0
+        avg_context_recall = 0.0
+        avg_hallucination_risk = 0.0
+
+        if evals:
+            avg_overall = sum([e.overall_score or 0 for e in evals]) / len(evals)
+            avg_faithfulness = sum([e.faithfulness_score or 0 for e in evals]) / len(evals)
+            avg_answer_relevance = sum([e.answer_relevance_score or 0 for e in evals]) / len(evals)
+            avg_context_precision = sum([e.context_precision_score or 0 for e in evals]) / len(evals)
+            avg_context_recall = sum([e.context_recall_score or 0 for e in evals]) / len(evals)
+            avg_hallucination_risk = sum([e.hallucination_risk_score or 0 for e in evals]) / len(evals)
 
         report_path = os.path.join(export_dir, "quality_report.md")
         with open(report_path, "w") as f:
             f.write("# Quality Report\n\n")
+
+            f.write(f"## Evaluator Rubric\n")
+            f.write(f"Samples were evaluated using a rich set of RAG-specific metrics:\n")
+            f.write(f"- **Faithfulness:** whether the expected answer is supported by the evidence chunks.\n")
+            f.write(f"- **Answer Relevance:** whether the expected answer directly answers the question.\n")
+            f.write(f"- **Context Precision:** whether provided evidence chunks are actually relevant.\n")
+            f.write(f"- **Context Recall:** whether provided evidence chunks contain enough information to answer.\n")
+            f.write(f"- **Hallucination Risk:** risk that the answer includes unsupported information. Lower is better.\n\n")
+
             f.write(f"## Summary\n")
             f.write(f"- **Passed Samples:** {len(passed_samples)}\n")
             f.write(f"- **Repaired Samples:** {len(repaired_samples)}\n")
             f.write(f"- **Human Review Samples:** {len(human_review_samples)}\n")
-            f.write(f"- **Rejected Samples:** {len(rejected_samples)}\n")
-            f.write(f"- **Average Quality Score:** {avg_score}\n\n")
+            f.write(f"- **Rejected Samples:** {len(rejected_samples)}\n\n")
+
+            f.write(f"## Metrics Averages (All Samples)\n")
+            f.write(f"- **Average Overall Score:** {avg_overall:.2f}\n")
+            f.write(f"- **Average Faithfulness Score:** {avg_faithfulness:.2f}\n")
+            f.write(f"- **Average Answer Relevance Score:** {avg_answer_relevance:.2f}\n")
+            f.write(f"- **Average Context Precision Score:** {avg_context_precision:.2f}\n")
+            f.write(f"- **Average Context Recall Score:** {avg_context_recall:.2f}\n")
+            f.write(f"- **Average Hallucination Risk Score:** {avg_hallucination_risk:.2f}\n\n")
 
             f.write(f"## Sample Types (Passed)\n")
             st_counts = {}
@@ -105,6 +145,7 @@ class ExportReportAgent(BaseAgent):
 
             f.write(f"## Common Issues\n")
             f.write(f"- Minor grounding issues requiring repair.\n")
+            f.write(f"- Multi-hop questions needing additional context.\n")
             f.write(f"- Some edge case questions marked for human review.\n\n")
             f.write(f"## Recommendations\n")
             f.write(f"- Periodically review human-flagged samples to improve generation prompts.\n")
