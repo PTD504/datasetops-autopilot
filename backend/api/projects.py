@@ -328,6 +328,67 @@ def approve_plan(project_id: str, background_tasks: BackgroundTasks, db: Session
     background_tasks.add_task(_run_generation_workflow, project_id)
     return {"status": "approved"}
 
+@router.get("/{project_id}/traces")
+def get_traces(project_id: str, db: Session = Depends(get_db)):
+    from backend.models.trace import Trace
+    traces = db.query(Trace).filter(Trace.project_id == project_id).order_by(Trace.created_at.asc()).all()
+    return [{
+        "id": t.id,
+        "agent_name": t.agent_name,
+        "action": t.action,
+        "details": t.details,
+        "created_at": t.created_at
+    } for t in traces]
+
+@router.get("/{project_id}/export/summary")
+def get_export_summary(project_id: str, db: Session = Depends(get_db)):
+    from backend.models.sample import Evaluation
+    from backend.models.enums import SampleStatus
+
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    all_samples = db.query(Sample).filter(Sample.project_id == project_id).all()
+    sample_ids = [s.id for s in all_samples]
+
+    evals = []
+    if sample_ids:
+        # Fetch latest evaluation for each sample
+        for sid in sample_ids:
+            latest_eval = db.query(Evaluation).filter(Evaluation.sample_id == sid).order_by(Evaluation.created_at.desc()).first()
+            if latest_eval:
+                evals.append(latest_eval)
+
+    approved_count = len([s for s in all_samples if s.status == SampleStatus.APPROVED])
+    total_count = len(all_samples)
+
+    sample_types = {}
+    statuses = {}
+    for s in all_samples:
+        st = s.sample_type or "unknown"
+        sample_types[st] = sample_types.get(st, 0) + 1
+
+        status = s.status.value if s.status else "unknown"
+        statuses[status] = statuses.get(status, 0) + 1
+
+    avg_overall = sum([e.overall_score or 0 for e in evals]) / len(evals) if evals else 0
+    avg_faithfulness = sum([e.faithfulness_score or 0 for e in evals]) / len(evals) if evals else 0
+    avg_hallucination_risk = sum([e.hallucination_risk_score or 0 for e in evals]) / len(evals) if evals else 0
+
+    return {
+        "export_ready": project.workflow_state == "EXPORT_READY",
+        "approved_sample_count": approved_count,
+        "total_sample_count": total_count,
+        "sample_type_distribution": sample_types,
+        "status_distribution": statuses,
+        "average_metrics": {
+            "overall": round(avg_overall, 2),
+            "faithfulness": round(avg_faithfulness, 2),
+            "hallucination_risk": round(avg_hallucination_risk, 2)
+        }
+    }
+
 @router.get("/{project_id}/samples")
 def get_samples(project_id: str, status: str = None, db: Session = Depends(get_db)):
     from backend.models.sample import Evaluation

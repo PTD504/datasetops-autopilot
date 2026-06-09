@@ -24,12 +24,33 @@ type UsageSummary = {
   last_error?: string | null
 }
 
+interface TraceData {
+  id: string
+  agent_name?: string
+  action: string
+  details?: Record<string, unknown>
+  created_at: string
+}
+
+function getTracePrefix(trace: TraceData) {
+  const isToolAction = ["tool", "chunk", "parse"].some(keyword =>
+    trace.action.toLowerCase().includes(keyword)
+  )
+
+  if (isToolAction) return "[Tool]"
+  if (!trace.agent_name || trace.agent_name === "System") return "[System]"
+
+  const agentLabel = trace.agent_name.replace(/Agent$/, "")
+  return `[${agentLabel}]`
+}
+
 export default function ProjectStatus() {
   const params = useParams()
   const id = params.id as string
   const [status, setStatus] = useState("LOADING")
   const [usage, setUsage] = useState<UsageSummary | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
+  const [traces, setTraces] = useState<TraceData[]>([])
 
   const terminalStates = ["DONE", "FAILED", "CANCELLED", "EXPORT_READY"]
   const isFinished = terminalStates.includes(status)
@@ -58,6 +79,12 @@ export default function ProjectStatus() {
         const usageData = await usageRes.json()
         setUsage(usageData)
         setLastError(usageData.last_error || null)
+      }
+
+      const tracesRes = await fetch(`${apiUrl}/api/projects/${id}/traces`)
+      if (tracesRes.ok) {
+        const tracesData = await tracesRes.json()
+        setTraces(tracesData)
       }
     } catch (e) {
       console.error(e)
@@ -180,6 +207,64 @@ export default function ProjectStatus() {
             >
               {usage?.cancel_requested ? "Stopping..." : "Stop Workflow (Emergency)"}
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Autopilot Execution Trace</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-black text-green-400 p-4 rounded-lg font-mono text-sm h-64 overflow-y-auto flex flex-col space-y-2">
+            {traces.length === 0 ? (
+              <div className="text-gray-500 italic">No traces available yet...</div>
+            ) : (
+              traces.map(trace => {
+                // Make the message human-readable
+                let msg = trace.action
+                if (trace.action === "start_source_analysis") msg = "SourceUnderstandingAgent analyzing document coverage."
+                else if (trace.action === "source_analysis_complete") msg = "Source analysis complete."
+                else if (trace.action === "start_planning") msg = "IntakePlannerAgent creating benchmark plan."
+                else if (trace.action === "plan_created") msg = "Benchmark plan created."
+                else if (trace.action === "start_generation_standard") msg = `BenchmarkGeneratorAgent generating ${trace.details?.count || 0} samples.`
+                else if (trace.action === "start_generation_repair") msg = `BenchmarkGeneratorAgent repairing ${trace.details?.count || 0} samples.`
+                else if (trace.action === "generation_standard_complete") msg = `Generated ${trace.details?.generated_count || 0} samples across types.`
+                else if (trace.action === "generation_repair_complete") msg = `Repaired ${trace.details?.generated_count || 0} samples.`
+                else if (trace.action === "start_evaluation") msg = `QualityEvaluatorAgent evaluating sample.`
+                else if (trace.action === "evaluation_complete") msg = `Evaluation complete. Decision: ${trace.details?.decision}.`
+                else if (trace.action === "start_export") msg = "ExportReportAgent generating dataset_card.md and quality_report.md."
+                else if (trace.action === "export_complete") msg = `Export package ready. Included ${trace.details?.file_count || 0} files.`
+
+                return (
+                  <div
+                    key={trace.id}
+                    className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 border-b border-gray-800 py-2 sm:grid-cols-[5.5rem_13rem_minmax(0,1fr)]"
+                  >
+                    <span className="row-span-2 text-gray-500 sm:row-span-1">
+                      {new Date(trace.created_at).toLocaleTimeString()}
+                    </span>
+                    <span
+                      className="min-w-0 break-words font-bold text-blue-400 sm:overflow-hidden sm:text-ellipsis sm:whitespace-nowrap"
+                      title={trace.agent_name || "System"}
+                    >
+                      {getTracePrefix(trace)}
+                    </span>
+                    <span className="col-start-2 min-w-0 whitespace-pre-wrap break-words text-green-400 sm:col-start-3">
+                      {msg}
+                    </span>
+                  </div>
+                )
+              })
+            )}
+            {/* Add computed final states if export is ready */}
+            {status === "EXPORT_READY" && (
+                <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 gap-y-1 border-t border-green-800/50 py-2 text-green-300 sm:grid-cols-[5.5rem_13rem_minmax(0,1fr)]">
+                    <span className="row-span-2 text-gray-500 sm:row-span-1">{new Date().toLocaleTimeString()}</span>
+                    <span className="font-bold text-blue-400">[System]</span>
+                    <span className="col-start-2 min-w-0 whitespace-pre-wrap break-words sm:col-start-3">Workflow completed successfully. Export package is ready.</span>
+                </div>
+            )}
           </div>
         </CardContent>
       </Card>

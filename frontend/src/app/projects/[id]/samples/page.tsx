@@ -23,6 +23,45 @@ interface SampleData {
   issues?: string[];
 }
 
+function SampleMetrics({ sample }: { sample: SampleData }) {
+  if (sample.overall_score == null) return null
+
+  return (
+    <div className="mt-2 w-full rounded-md border border-border/60 bg-muted/30 p-2 text-xs text-muted-foreground">
+      <div className="mb-1 font-semibold text-foreground">Metrics</div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+        <span title="Faithfulness: whether the answer is supported by evidence">Faith: {sample.faithfulness_score}</span>
+        <span title="Answer relevance: whether the answer directly answers the question">Rel: {sample.answer_relevance_score}</span>
+        <span title="Hallucination risk: risk of unsupported claims">Halluc: {sample.hallucination_risk_score}</span>
+        <span className="font-bold text-foreground">Score: {(sample.overall_score * 100).toFixed(0)}%</span>
+      </div>
+      <div className="mt-2 border-t border-border/60 pt-1 text-[10px] font-semibold uppercase">
+        Decision: {sample.decision}
+      </div>
+    </div>
+  )
+}
+
+function EvaluationIssues({ sample }: { sample: SampleData }) {
+  if (
+    !["HUMAN_REVIEW", "REJECTED"].includes(sample.status) ||
+    !sample.issues?.length
+  ) {
+    return null
+  }
+
+  return (
+    <div className="mt-3 rounded-md border border-red-100 bg-red-50 p-3 text-xs text-red-800">
+      <div className="mb-1 text-[10px] font-bold uppercase tracking-wider">Evaluator Notes / Issues</div>
+      <ul className="list-disc space-y-1 pl-4">
+        {sample.issues.map((issue, index) => (
+          <li key={`${sample.id}-issue-${index}`}>{issue}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function SamplesReview() {
   const params = useParams()
   const id = params.id as string
@@ -54,7 +93,7 @@ export default function SamplesReview() {
   }, [id])
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="container mx-auto max-w-[1600px] px-4 py-8">
       <Card className="shadow-lg border-primary/10">
         <CardHeader className="bg-muted/30 pb-6 border-b">
           <CardTitle className="text-2xl">Human-in-the-Loop Workbench</CardTitle>
@@ -63,45 +102,59 @@ export default function SamplesReview() {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
-          <div className="rounded-md border overflow-hidden">
-            <Table>
+          <div className="hidden overflow-hidden rounded-md border lg:block">
+            <Table className="table-fixed">
+              <colgroup>
+                <col className="w-[14%]" />
+                <col className="w-[16%]" />
+                <col className="w-[8%]" />
+                <col className="w-[25%]" />
+                <col className="w-[29%]" />
+                <col className="w-[8%]" />
+              </colgroup>
               <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableHead className="w-[140px]">Status / Eval</TableHead>
-                  <TableHead className="w-[180px]">Category / Type</TableHead>
-                  <TableHead className="w-[100px]">Difficulty</TableHead>
-                  <TableHead className="min-w-[200px]">Question</TableHead>
-                  <TableHead className="min-w-[200px]">Expected Answer</TableHead>
+                  <TableHead>Status / Eval</TableHead>
+                  <TableHead>Category / Type</TableHead>
+                  <TableHead>Difficulty</TableHead>
+                  <TableHead>Question</TableHead>
+                  <TableHead>Expected Answer</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {samples.map((s) => (
                   <TableRow key={s.id} className="group hover:bg-muted/30 transition-colors">
-                    <TableCell className="font-medium">
-                      <div className="flex flex-col gap-1 items-start">
+                    <TableCell className="whitespace-normal align-top font-medium">
+                      <div className="flex min-w-0 flex-col items-start gap-1">
                         {getStatusBadge(s.status)}
-                        {s.overall_score != null && (
-                          <div className="text-[10px] text-muted-foreground mt-1" title={`Decision: ${s.decision}\nFaithfulness: ${s.faithfulness_score}\nAnswer Rel: ${s.answer_relevance_score}\nHallucination Risk: ${s.hallucination_risk_score}`}>
-                            Score: {(s.overall_score * 100).toFixed(0)}%
-                            <br />
-                            <span className="opacity-70 truncate max-w-[120px] inline-block">{s.decision}</span>
-                          </div>
-                        )}
+                        <SampleMetrics sample={s} />
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">
-                      <div>{s.category}</div>
-                      <Badge variant="outline" className="text-[10px] mt-1 bg-muted/50 font-normal">
+                    <TableCell className="whitespace-normal align-top text-sm">
+                      <div className="mb-2 min-w-0 break-words font-medium">{s.category}</div>
+                      <Badge variant="outline" className="text-[10px] bg-muted/50 font-normal cursor-help"
+                        title={
+                          s.sample_type === 'single_hop' ? 'single_hop — answerable from one evidence chunk' :
+                          s.sample_type === 'multi_hop' ? 'multi_hop — requires combining multiple evidence chunks' :
+                          s.sample_type === 'unanswerable' ? 'unanswerable — intentionally checks if a RAG system refuses unsupported questions' :
+                          s.sample_type === 'edge_case' ? 'edge_case — tests policy boundaries or ambiguous cases' :
+                          'unknown sample type'
+                        }>
                         {s.sample_type || 'single_hop'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="whitespace-normal align-top text-sm">
                       <Badge variant="outline" className="font-normal text-xs">{s.difficulty}</Badge>
                     </TableCell>
-                    <TableCell className="text-sm max-w-[250px] truncate group-hover:whitespace-normal group-hover:break-words group-hover:bg-background/95 transition-all group-hover:absolute group-hover:z-10 group-hover:border group-hover:shadow-lg group-hover:p-4 group-hover:rounded-md" title={s.question}>{s.question}</TableCell>
-                    <TableCell className="text-sm max-w-[250px] truncate group-hover:whitespace-normal group-hover:break-words group-hover:bg-background/95 transition-all group-hover:absolute group-hover:z-10 group-hover:border group-hover:shadow-lg group-hover:p-4 group-hover:rounded-md group-hover:ml-[250px]" title={s.expected_answer}>{s.expected_answer}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="whitespace-normal align-top text-sm">
+                      <div className="min-w-0 whitespace-pre-wrap break-words leading-6">{s.question}</div>
+                    </TableCell>
+                    <TableCell className="whitespace-normal align-top text-sm">
+                      <div className="min-w-0 whitespace-pre-wrap break-words leading-6">{s.expected_answer}</div>
+                      <EvaluationIssues sample={s} />
+                    </TableCell>
+                    <TableCell className="whitespace-normal align-top text-right">
                       <div className="flex justify-end gap-2">
                          <Button size="sm" variant="outline" className="opacity-50" disabled title="Coming soon">Edit</Button>
                       </div>
@@ -120,6 +173,44 @@ export default function SamplesReview() {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          <div className="space-y-4 lg:hidden">
+            {samples.map(sample => (
+              <div key={sample.id} className="rounded-md border bg-card p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b pb-3">
+                  <div className="min-w-0 space-y-2">
+                    {getStatusBadge(sample.status)}
+                    <div className="break-words font-medium">{sample.category}</div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="outline" className="font-normal">{sample.sample_type || "single_hop"}</Badge>
+                      <Badge variant="outline" className="font-normal">{sample.difficulty}</Badge>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="outline" disabled title="Coming soon">Edit</Button>
+                </div>
+
+                <div className="grid gap-4 py-4 md:grid-cols-2">
+                  <section className="min-w-0">
+                    <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Question</h3>
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6">{sample.question}</p>
+                  </section>
+                  <section className="min-w-0">
+                    <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Expected Answer</h3>
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6">{sample.expected_answer}</p>
+                    <EvaluationIssues sample={sample} />
+                  </section>
+                </div>
+
+                <SampleMetrics sample={sample} />
+              </div>
+            ))}
+            {samples.length === 0 && (
+              <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-md border text-center text-muted-foreground">
+                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+                <p>No samples generated or processing yet. Check back soon.</p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
