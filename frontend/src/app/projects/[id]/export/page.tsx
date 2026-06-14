@@ -23,13 +23,39 @@ export default function ExportPage() {
   const params = useParams()
   const id = params.id as string
   const [summary, setSummary] = useState<ExportSummary | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
 
-  useEffect(() => {
+  const fetchSummary = () => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/export/summary`)
       .then(r => r.json())
       .then(setSummary)
       .catch(console.error)
+  }
+
+  useEffect(() => {
+    fetchSummary()
   }, [id])
+
+  const handleRegenerate = async () => {
+    setRegenerating(true)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/export`, {
+        method: "POST"
+      })
+      if (res.ok) {
+        fetchSummary()
+        alert("Export package successfully regenerated!")
+      } else {
+        alert("Failed to regenerate export package.")
+      }
+    } catch (e) {
+      console.error(e)
+      alert("Error connecting to server to regenerate export.")
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl">
       <Card className="shadow-xl border-primary/20 overflow-hidden">
@@ -62,7 +88,7 @@ export default function ExportPage() {
            {summary && summary.export_ready && (
              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-6 mb-8 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                 <div className="space-y-1">
-                  <div className="text-sm text-muted-foreground uppercase tracking-wider">Approved</div>
+                  <div className="text-sm text-muted-foreground uppercase tracking-wider">Exported Samples</div>
                   <div className="text-2xl font-bold text-blue-700">{summary.approved_sample_count} <span className="text-base font-normal text-muted-foreground">/ {summary.total_sample_count}</span></div>
                 </div>
                 <div className="space-y-1">
@@ -91,14 +117,14 @@ export default function ExportPage() {
                  <FileJson className="w-6 h-6 text-blue-500 mt-0.5 shrink-0" />
                  <div>
                    <div className="font-mono font-semibold">rag_eval.jsonl</div>
-                   <div className="text-sm text-muted-foreground">The generated questions and their corresponding source contexts for retrieval evaluation.</div>
+                   <div className="text-sm text-muted-foreground">The generated questions and their corresponding source contexts for retrieval evaluation. Excluding rejected samples.</div>
                  </div>
                </li>
                <li className="flex items-start gap-4 p-3 bg-background rounded-lg border shadow-sm transition-all hover:shadow-md">
                  <FileJson className="w-6 h-6 text-purple-500 mt-0.5 shrink-0" />
                  <div>
                    <div className="font-mono font-semibold">answer_key.jsonl</div>
-                   <div className="text-sm text-muted-foreground">Ground-truth expected answers for LLM-as-a-judge generation evaluation.</div>
+                   <div className="text-sm text-muted-foreground">Ground-truth expected answers for LLM-as-a-judge generation evaluation. Excluding rejected samples.</div>
                  </div>
                </li>
                <li className="flex items-start gap-4 p-3 bg-background rounded-lg border shadow-sm transition-all hover:shadow-md">
@@ -117,13 +143,21 @@ export default function ExportPage() {
                </li>
              </ul>
 
-             <div className="text-center">
-               <Button size="lg" className="w-full sm:w-auto px-12 h-14 text-lg rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all" onClick={() => alert("Downloading export.zip...")}>
-                 Download Complete Package
-               </Button>
-               <p className="text-xs text-muted-foreground mt-4">
-                 Note: In the hackathon demo environment, downloads may be simulated depending on OSS configuration.
-               </p>
+             <div className="text-center space-y-4">
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Button size="lg" className="w-full sm:w-auto px-12 h-14 text-lg rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all" onClick={() => {
+                    const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/export/download`;
+                    window.location.href = downloadUrl;
+                  }}>
+                    Download Complete Package
+                  </Button>
+                  <Button size="lg" variant="outline" className="w-full sm:w-auto px-8 h-14 text-lg rounded-xl border-primary/20 text-primary hover:bg-primary/5" onClick={handleRegenerate} disabled={regenerating}>
+                    {regenerating ? "Regenerating..." : "Regenerate Export"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-4">
+                  Note: If you have approved, rejected, or edited samples, click &quot;Regenerate Export&quot; to update the ZIP file.
+                </p>
              </div>
            </div>
 
