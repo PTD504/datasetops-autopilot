@@ -55,13 +55,20 @@ def test_full_mock_workflow():
         response = client.post(f"/api/projects/{project_id}/plan/approve")
         assert response.status_code == 200
 
-        # Wait for generation to finish and export
+        # Wait for generation to finish (should stop at WAITING_FOR_SAMPLE_REVIEW)
         for _ in range(20):
             resp = client.get(f"/api/projects/{project_id}/status")
-            if resp.json()["workflow_state"] == "EXPORT_READY":
+            if resp.json()["workflow_state"] == "WAITING_FOR_SAMPLE_REVIEW":
                 break
             time.sleep(1)
 
+        assert client.get(f"/api/projects/{project_id}/status").json()["workflow_state"] == "WAITING_FOR_SAMPLE_REVIEW"
+
+        # Call the new approve-and-export endpoint to finalize sample review and build export package
+        response = client.post(f"/api/projects/{project_id}/samples/approve-and-export")
+        assert response.status_code == 200
+
+        # Confirm the project state is now EXPORT_READY
         assert client.get(f"/api/projects/{project_id}/status").json()["workflow_state"] == "EXPORT_READY"
 
         # 5. Check samples were generated
@@ -84,6 +91,33 @@ def test_full_mock_workflow():
             import json
             first_sample = json.loads(lines[0])
             assert "sample_type" in first_sample
+
+        # 7. Check artifacts were logged
+        artifacts_resp = client.get(f"/api/projects/{project_id}/artifacts")
+        assert artifacts_resp.status_code == 200
+        artifacts = artifacts_resp.json()
+        
+        # Verify artifact types
+        artifact_types = [a["artifact_type"] for a in artifacts]
+        assert "source_understanding_report" in artifact_types
+        assert "benchmark_plan_draft" in artifact_types
+        assert "approved_benchmark_plan" in artifact_types
+        assert "generated_samples_snapshot" in artifact_types
+        assert "evaluation_report" in artifact_types
+        assert "approved_samples_summary" in artifact_types
+        assert "export_summary" in artifact_types
+
+        # Check content_json structure for a couple of artifacts
+        plan_draft = next(a for a in artifacts if a["artifact_type"] == "benchmark_plan_draft")
+        assert plan_draft["content_json"]["domain"] == "RAG Evaluation"
+        assert len(plan_draft["content_json"]["categories"]) > 0
+
+        # 8. Check unified trace endpoint includes artifacts
+        trace_resp = client.get(f"/api/projects/{project_id}/trace")
+        assert trace_resp.status_code == 200
+        trace_items = trace_resp.json()
+        trace_types = [item["type"] for item in trace_items]
+        assert "artifact" in trace_types
     finally:
         export_dir = f"backend/exports/{project_id}"
         if os.path.exists(export_dir):

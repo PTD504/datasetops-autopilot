@@ -4,7 +4,7 @@ import logging
 import uuid
 from contextvars import ContextVar
 from sqlalchemy.orm import Session
-from backend.models.logging_models import AgentRun, ToolCallLog, WorkflowEvent
+from backend.models.logging_models import AgentRun, ToolCallLog, WorkflowEvent, AgentArtifact
 
 logger = logging.getLogger(__name__)
 
@@ -134,3 +134,33 @@ def log_tool_call(db: Session, project_id: str, tool_name: str, input_summary: s
         db.commit()
     except Exception as e:
         logger.error(f"Failed to log tool call {tool_name} for project {project_id}: {e}")
+
+
+def log_agent_artifact(
+    db: Session,
+    project_id: str,
+    artifact_type: str,
+    title: str,
+    summary: str | None,
+    content_json: dict | list | None,
+    agent_run_id: str | None = None
+):
+    try:
+        run_id = agent_run_id or current_agent_run_id.get()
+        artifact = AgentArtifact(
+            id=str(uuid.uuid4()),
+            project_id=project_id,
+            agent_run_id=run_id,
+            artifact_type=artifact_type,
+            title=title,
+            summary=summary,
+            content_json=content_json,
+            created_at=datetime.datetime.utcnow()
+        )
+        db.add(artifact)
+        db.commit()
+        return artifact
+    except Exception as e:
+        logger.error(f"Failed to log agent artifact {artifact_type} for project {project_id}: {e}")
+        return None
+

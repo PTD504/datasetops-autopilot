@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { WorkflowTracePanel, TraceItem } from "@/components/WorkflowTracePanel"
+import { WorkflowTracePanel, TraceItem, AgentArtifact } from "@/components/WorkflowTracePanel"
 
 type UsageSummary = {
   llm_mode: string
@@ -43,6 +43,7 @@ export default function ProjectStatus() {
   const [lastError, setLastError] = useState<string | null>(null)
   const [traces, setTraces] = useState<TraceData[]>([])
   const [combinedTrace, setCombinedTrace] = useState<TraceItem[]>([])
+  const [artifacts, setArtifacts] = useState<AgentArtifact[]>([])
   const [traceLoading, setTraceLoading] = useState(true)
   const [traceError, setTraceError] = useState(false)
 
@@ -60,8 +61,14 @@ export default function ProjectStatus() {
       } else {
         setTraceError(true)
       }
+
+      const artRes = await fetch(`${apiUrl}/api/projects/${id}/artifacts`)
+      if (artRes.ok) {
+        const artData = await artRes.json()
+        setArtifacts(artData)
+      }
     } catch (e) {
-      console.error("Failed to fetch combined trace", e)
+      console.error("Failed to fetch combined trace or artifacts", e)
       setTraceError(true)
     } finally {
       setTraceLoading(false)
@@ -241,6 +248,7 @@ export default function ProjectStatus() {
             onRefresh={() => fetchTrace(true)}
             rawTraces={traces}
             status={status}
+            artifacts={artifacts}
           />
         </CardContent>
       </Card>

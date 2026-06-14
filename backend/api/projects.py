@@ -3,7 +3,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Any, Dict
 from backend.core.database import get_db, SessionLocal
-from backend.models import Project, Document, BenchmarkPlan, Sample
+from backend.models import Project, Document, BenchmarkPlan, Sample, AgentArtifact, Chunk, Evaluation
 from backend.models.export import Export
 from backend.models.trace import Trace
 from backend.models.enums import WorkflowState, SampleStatus, DecisionType
@@ -20,7 +20,8 @@ from backend.agents.source_understanding import SourceUnderstandingAgent
 from backend.agents.generator import BenchmarkGeneratorAgent
 from backend.agents.evaluator import QualityEvaluatorAgent
 from backend.agents.exporter import ExportReportAgent
-from backend.services.workflow_logger import log_workflow_event, log_agent_run, log_tool_call
+from backend.services.workflow_logger import log_workflow_event, log_agent_run, log_tool_call, log_agent_artifact
+
 from backend.services.cancellation import (
     WorkflowCancellationRequested,
     raise_if_cancelled,
@@ -89,10 +90,24 @@ class WorkflowEventResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class AgentArtifactResponse(BaseModel):
+    id: str
+    project_id: str
+    agent_run_id: str | None = None
+    artifact_type: str
+    title: str
+    summary: str | None = None
+    content_json: Any | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class TraceItemResponse(BaseModel):
-    type: str  # "workflow_event" | "agent_run" | "tool_call"
+    type: str  # "workflow_event" | "agent_run" | "tool_call" | "artifact"
     timestamp: datetime
     data: Any
+
 
 @router.post("/", response_model=ProjectResponse)
 def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
@@ -222,6 +237,23 @@ def _run_initial_workflow(project_id: str):
                 warnings=warnings
             )
 
+        # Log Source Understanding Report Artifact
+        chunk_count = db.query(Chunk).filter(Chunk.project_id == project_id).count()
+        log_agent_artifact(
+            db=db,
+            project_id=project_id,
+            artifact_type="source_understanding_report",
+            title="Source Understanding Report",
+            summary=f"Analyzed {len(docs)} documents containing {chunk_count} chunks. Identified {len(warnings)} warning(s).",
+            content_json={
+                "document_count": len(docs),
+                "chunk_count": chunk_count,
+                "source_warnings": warnings,
+                "confidence_score": 0.9 if not warnings else 0.7
+            },
+            agent_run_id=agent_logger.run_id
+        )
+
         project.workflow_state = "SOURCE_ANALYZED"
         db.commit()
         log_workflow_event(db, project_id, "source_analysis_completed", f"Source analysis complete. Summary: {summary}")
@@ -245,6 +277,27 @@ def _run_initial_workflow(project_id: str):
                 },
                 warnings=plan.source_warnings if hasattr(plan, "source_warnings") else []
             )
+
+        # Log Benchmark Plan Draft Artifact
+        plan_total = plan.sample_count.get("total") if isinstance(plan.sample_count, dict) else plan.sample_count
+        log_agent_artifact(
+            db=db,
+            project_id=project_id,
+            artifact_type="benchmark_plan_draft",
+            title="Benchmark Plan Draft",
+            summary=f"Drafted benchmark plan targeting {plan_total} samples across categories: {', '.join(plan.categories or [])}.",
+            content_json={
+                "domain": "RAG Evaluation",
+                "language": plan.language or "English",
+                "sample_count": plan_total,
+                "categories": plan.categories or [],
+                "difficulty_distribution": plan.sample_count if isinstance(plan.sample_count, dict) else {},
+                "quality_rules": plan.quality_rules or [],
+                "warnings": plan.source_warnings or []
+            },
+            agent_run_id=agent_logger.run_id
+        )
+
 
         # Enforce budget/quota guardrails on plan creation (e.g. cap sample count or warn early)
         enforce_quota_guardrails(db, project_id, raise_on_strict=False)
@@ -383,6 +436,43 @@ def _run_generation_workflow(project_id: str):
                 output_json={"sample_ids": [s.id for s in samples]}
             )
 
+        # Log Generated Samples Snapshot Artifact
+        cat_dist = {}
+        diff_dist = {}
+        type_dist = {}
+        preview = []
+        for s in samples:
+            cat_dist[s.category] = cat_dist.get(s.category, 0) + 1
+            diff_dist[s.difficulty] = diff_dist.get(s.difficulty, 0) + 1
+            type_dist[s.sample_type] = type_dist.get(s.sample_type, 0) + 1
+            if len(preview) < 3:
+                preview.append({
+                    "id": s.id,
+                    "category": s.category,
+                    "difficulty": s.difficulty,
+                    "sample_type": s.sample_type,
+                    "question": s.question[:100] + "..." if len(s.question) > 100 else s.question
+                })
+
+        log_agent_artifact(
+            db=db,
+            project_id=project_id,
+            artifact_type="generated_samples_snapshot",
+            title="Generated Samples Snapshot",
+            summary=f"Generated {len(samples)} samples. Distribution: easy={diff_dist.get('easy', 0)}, medium={diff_dist.get('medium', 0)}, hard={diff_dist.get('hard', 0)}.",
+            content_json={
+                "total_generated": len(samples),
+                "sample_ids": [s.id for s in samples],
+                "category_distribution": cat_dist,
+                "difficulty_distribution": diff_dist,
+                "sample_type_distribution": type_dist,
+                "sample_preview": preview,
+                "warnings": []
+            },
+            agent_run_id=agent_logger.run_id
+        )
+
+
         raise_if_cancelled(db, project_id, "evaluation.before")
         project.workflow_state = "EVALUATING"
         db.commit()
@@ -446,27 +536,73 @@ def _run_generation_workflow(project_id: str):
                      db.commit()
                      log_workflow_event(db, project_id, "repair_skipped", f"Skipped repair for sample {sample.id} because retry count reached maximum limit.")
 
+        # Log Quality Evaluation Report
+        evals = db.query(Evaluation).join(Sample).filter(Sample.project_id == project_id).all()
+        eval_scores = [e.overall_score for e in evals if e.overall_score is not None]
+        faith_scores = [e.faithfulness_score for e in evals if e.faithfulness_score is not None]
+        rel_scores = [e.answer_relevance_score for e in evals if e.answer_relevance_score is not None]
+        
+        passed_count = len([s for s in samples if s.status == SampleStatus.APPROVED])
+        human_review_count = len([s for s in samples if s.status == SampleStatus.HUMAN_REVIEW])
+        rejected_count = len([s for s in samples if s.status == SampleStatus.REJECTED])
+        repairing_count = len([s for s in samples if s.status == SampleStatus.REPAIRING])
+        
+        all_issues = []
+        for e in evals:
+            if e.issues:
+                all_issues.extend(e.issues)
+        unique_issues = list(set(all_issues))[:5]
+        
+        def safe_avg(scores):
+            return round(sum(scores) / len(scores), 3) if scores else 0.0
+
+        log_agent_artifact(
+            db=db,
+            project_id=project_id,
+            artifact_type="evaluation_report",
+            title="Quality Evaluation Report",
+            summary=f"Evaluated {len(samples)} samples. Pass: {passed_count}, Human Review: {human_review_count}, Reject: {rejected_count}.",
+            content_json={
+                "total_evaluated": len(samples),
+                "average_scores": {
+                    "overall": safe_avg(eval_scores),
+                    "faithfulness": safe_avg(faith_scores),
+                    "answer_relevance": safe_avg(rel_scores)
+                },
+                "decision_counts": {
+                    "pass": passed_count,
+                    "human_review": human_review_count,
+                    "reject": rejected_count,
+                    "repair": repairing_count
+                },
+                "common_issues": unique_issues,
+                "warnings": []
+            }
+        )
+
+        repaired_samples = [s for s in samples if s.retry_count > 0]
+        if repaired_samples:
+            successful_repairs = len([s for s in repaired_samples if s.status == SampleStatus.APPROVED])
+            failed_repairs = len(repaired_samples) - successful_repairs
+            log_agent_artifact(
+                db=db,
+                project_id=project_id,
+                artifact_type="repair_attempts_summary",
+                title="Repair Attempts Summary",
+                summary=f"Attempted repairs on {len(repaired_samples)} samples. Success: {successful_repairs}, Failed: {failed_repairs}.",
+                content_json={
+                    "total_repairs": len(repaired_samples),
+                    "successful_repairs": successful_repairs,
+                    "failed_repairs": failed_repairs,
+                    "repaired_sample_ids": [s.id for s in repaired_samples]
+                }
+            )
+
         project.workflow_state = "WAITING_FOR_SAMPLE_REVIEW"
         db.commit()
         log_workflow_event(db, project_id, "waiting_for_sample_review", "Workflow waiting for human sample review.")
 
-        # For hackathon demo speed, immediately export if some samples are approved
-        raise_if_cancelled(db, project_id, "export.before")
-        log_workflow_event(db, project_id, "export_started", "Starting initial benchmark package export.")
-        
-        with log_agent_run(db, project_id, "ExportReportAgent", f"Exporting project {project_id} benchmark package") as agent_logger:
-            exporter = ExportReportAgent(db, project_id)
-            export_record = exporter.run()
-            
-            agent_logger.update(
-                decision_summary=f"Exported package successfully: {export_record.file_urls.get('export.zip') if (export_record and export_record.file_urls) else 'N/A'}",
-                output_json={
-                    "export_id": export_record.id if export_record else None,
-                    "file_urls": export_record.file_urls if export_record else None
-                }
-            )
 
-        log_workflow_event(db, project_id, "export_completed", "Benchmark export completed successfully.")
     except WorkflowCancellationRequested as e:
         print(f"Generation workflow cancelled: {e}")
         log_workflow_event(db, project_id, "workflow_cancelled", f"Generation workflow cancelled: {str(e)}")
@@ -595,6 +731,28 @@ def approve_plan(project_id: str, background_tasks: BackgroundTasks, db: Session
     log_workflow_event(db, project_id, "plan_approved", "Benchmark plan approved by human review.")
     db.commit()
 
+    # Log Approved Benchmark Plan Artifact
+    plan = db.query(BenchmarkPlan).filter(BenchmarkPlan.project_id == project_id).first()
+    if plan:
+        plan_total = plan.sample_count.get("total") if isinstance(plan.sample_count, dict) else plan.sample_count
+        log_agent_artifact(
+            db=db,
+            project_id=project_id,
+            artifact_type="approved_benchmark_plan",
+            title="Approved Benchmark Plan",
+            summary=f"Plan approved by human review with total samples: {plan_total}.",
+            content_json={
+                "domain": "RAG Evaluation",
+                "language": plan.language or "English",
+                "sample_count": plan_total,
+                "categories": plan.categories or [],
+                "difficulty_distribution": plan.sample_count if isinstance(plan.sample_count, dict) else {},
+                "quality_rules": plan.quality_rules or [],
+                "warnings": plan.source_warnings or []
+            }
+        )
+
+
     background_tasks.add_task(_run_generation_workflow, project_id)
     return {"status": "approved"}
 
@@ -628,17 +786,37 @@ def get_workflow_events(project_id: str, db: Session = Depends(get_db)):
     events = db.query(WorkflowEvent).filter(WorkflowEvent.project_id == project_id).order_by(WorkflowEvent.created_at.asc()).all()
     return events
 
+@router.get("/{project_id}/artifacts", response_model=List[AgentArtifactResponse])
+def get_artifacts(project_id: str, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    artifacts = db.query(AgentArtifact).filter(AgentArtifact.project_id == project_id).order_by(AgentArtifact.created_at.asc()).all()
+    return artifacts
+
+@router.get("/{project_id}/artifacts/{artifact_id}", response_model=AgentArtifactResponse)
+def get_artifact(project_id: str, artifact_id: str, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    artifact = db.query(AgentArtifact).filter(AgentArtifact.project_id == project_id, AgentArtifact.id == artifact_id).first()
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    return artifact
+
 @router.get("/{project_id}/trace", response_model=List[TraceItemResponse])
+
 def get_combined_trace(project_id: str, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    from backend.models.logging_models import AgentRun, ToolCallLog, WorkflowEvent
+    from backend.models.logging_models import AgentRun, ToolCallLog, WorkflowEvent, AgentArtifact
 
     events = db.query(WorkflowEvent).filter(WorkflowEvent.project_id == project_id).all()
     runs = db.query(AgentRun).filter(AgentRun.project_id == project_id).all()
     tool_calls = db.query(ToolCallLog).filter(ToolCallLog.project_id == project_id).all()
+    artifacts = db.query(AgentArtifact).filter(AgentArtifact.project_id == project_id).all()
 
     items = []
 
@@ -689,6 +867,22 @@ def get_combined_trace(project_id: str, db: Session = Depends(get_db)):
                 "status": tc.status,
                 "latency_ms": tc.latency_ms,
                 "created_at": tc.created_at
+            }
+        })
+
+    for art in artifacts:
+        items.append({
+            "type": "artifact",
+            "timestamp": art.created_at,
+            "data": {
+                "id": art.id,
+                "project_id": art.project_id,
+                "agent_run_id": art.agent_run_id,
+                "artifact_type": art.artifact_type,
+                "title": art.title,
+                "summary": art.summary,
+                "content_json": art.content_json,
+                "created_at": art.created_at
             }
         })
 
@@ -1061,6 +1255,96 @@ def update_sample(project_id: str, sample_id: str, sample_update: SampleUpdate, 
     return sample
 
 
+@router.post("/{project_id}/samples/approve-and-export")
+def approve_and_export(project_id: str, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if project.workflow_state not in ["WAITING_FOR_SAMPLE_REVIEW", "EXPORT_READY"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Project is not in a valid state for finalization: {project.workflow_state}"
+        )
+
+    # 1. Update remaining non-rejected samples to APPROVED
+    samples = db.query(Sample).filter(Sample.project_id == project_id).all()
+    for s in samples:
+        if s.status in [SampleStatus.HUMAN_REVIEW, SampleStatus.GENERATED, SampleStatus.REPAIRING] or s.status is None:
+            s.status = SampleStatus.APPROVED
+
+    db.commit()
+
+    # 2. Log workflow event for sample review approval
+    log_workflow_event(db, project_id, "sample_review_approved", "Human sample review completed and approved.")
+
+    # 3. Transition to EXPORTING
+    project.workflow_state = WorkflowState.EXPORTING.value
+    db.commit()
+
+    # 4. Run Export
+    log_workflow_event(db, project_id, "export_started", "Starting human-approved benchmark package export.")
+    
+    from backend.agents.exporter import ExportReportAgent
+    with log_agent_run(db, project_id, "ExportReportAgent", "Generating final benchmark package") as agent_logger:
+        exporter = ExportReportAgent(db, project_id)
+        export_record = exporter.run()
+        
+        agent_logger.update(
+            decision_summary=f"Exported package successfully: {export_record.file_urls.get('export.zip') if (export_record and export_record.file_urls) else 'N/A'}",
+            output_json={
+                "export_id": export_record.id if export_record else None,
+                "file_urls": export_record.file_urls if export_record else None
+            }
+        )
+
+    # 5. Transition project to EXPORT_READY
+    project.workflow_state = WorkflowState.EXPORT_READY.value
+    db.commit()
+    log_workflow_event(db, project_id, "export_completed", "Benchmark export completed successfully.")
+
+    # 6. Log Artifacts
+    approved_samples = [s for s in samples if s.status == SampleStatus.APPROVED]
+    rejected_samples = [s for s in samples if s.status == SampleStatus.REJECTED]
+
+    # Log approved_samples_summary
+    log_agent_artifact(
+        db=db,
+        project_id=project_id,
+        artifact_type="approved_samples_summary",
+        title="Approved Samples Summary",
+        summary=f"Human review completed. Approved {len(approved_samples)} sample(s), Rejected {len(rejected_samples)} sample(s).",
+        content_json={
+            "total_samples": len(samples),
+            "approved_count": len(approved_samples),
+            "rejected_count": len(rejected_samples),
+            "approved_sample_ids": [s.id for s in approved_samples]
+        },
+        agent_run_id=agent_logger.run_id
+    )
+
+    # Log export_summary
+    if export_record:
+        log_agent_artifact(
+            db=db,
+            project_id=project_id,
+            artifact_type="export_summary",
+            title="Export Package Summary",
+            summary=f"Benchmark package exported with {len(approved_samples)} approved samples.",
+            content_json={
+                "export_id": export_record.id,
+                "exported_files": list(export_record.file_urls.keys()) if export_record.file_urls else ["export.zip"],
+                "approved_sample_count": len(approved_samples),
+                "rejected_sample_count": len(rejected_samples),
+                "file_urls": {k: "Safe download endpoint" for k in export_record.file_urls.keys()} if export_record.file_urls else {},
+                "generated_at": datetime.utcnow().isoformat()
+            },
+            agent_run_id=agent_logger.run_id
+        )
+
+    return {"status": "success", "export_id": export_record.id if export_record else None}
+
+
 @router.post("/{project_id}/export")
 def rebuild_export(project_id: str, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -1079,6 +1363,31 @@ def rebuild_export(project_id: str, db: Session = Depends(get_db)):
                 "file_urls": export_record.file_urls if export_record else None
             }
         )
+
+        # Log Export Summary Artifact
+        if export_record:
+            from backend.models.enums import SampleStatus
+            all_samples = db.query(Sample).filter(Sample.project_id == project_id).all()
+            approved_count = len([s for s in all_samples if s.status == SampleStatus.APPROVED])
+            rejected_count = len([s for s in all_samples if s.status == SampleStatus.REJECTED])
+            log_agent_artifact(
+                db=db,
+                project_id=project_id,
+                artifact_type="export_summary",
+                title="Export Package Summary (Rebuilt)",
+                summary=f"Benchmark package rebuilt with {approved_count} approved samples.",
+                content_json={
+                    "export_id": export_record.id,
+                    "exported_files": list(export_record.file_urls.keys()) if export_record.file_urls else ["export.zip"],
+                    "approved_sample_count": approved_count,
+                    "rejected_sample_count": rejected_count,
+                    "file_urls": {k: "Safe download endpoint" for k in export_record.file_urls.keys()} if export_record.file_urls else {},
+                    "generated_at": datetime.utcnow().isoformat(),
+                    "is_rebuild": True
+                },
+                agent_run_id=agent_logger.run_id
+            )
+
     log_workflow_event(db, project_id, "export_rebuild_completed", "Benchmark export rebuild completed successfully.")
 
     return {"status": "success", "export_id": export_record.id}

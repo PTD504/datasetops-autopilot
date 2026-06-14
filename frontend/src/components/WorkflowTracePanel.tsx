@@ -7,7 +7,8 @@ import {
   Wrench, 
   ChevronDown, 
   ChevronUp, 
-  Network 
+  Network,
+  FileText
 } from "lucide-react"
 
 export interface ToolCallLog {
@@ -46,10 +47,21 @@ export interface WorkflowEvent {
   created_at: string
 }
 
+export interface AgentArtifact {
+  id: string
+  project_id: string
+  agent_run_id: string | null
+  artifact_type: string
+  title: string
+  summary: string | null
+  content_json: Record<string, unknown> | null
+  created_at: string
+}
+
 export interface TraceItem {
-  type: "workflow_event" | "agent_run" | "tool_call"
+  type: "workflow_event" | "agent_run" | "tool_call" | "artifact"
   timestamp: string
-  data: WorkflowEvent | AgentRun | ToolCallLog
+  data: WorkflowEvent | AgentRun | ToolCallLog | AgentArtifact
 }
 
 export interface RawTraceItem {
@@ -67,7 +79,9 @@ interface WorkflowTracePanelProps {
   onRefresh: () => void
   rawTraces: RawTraceItem[]
   status: string
+  artifacts?: AgentArtifact[]
 }
+
 
 export function WorkflowTracePanel({
   traceItems,
@@ -75,9 +89,11 @@ export function WorkflowTracePanel({
   error,
   onRefresh,
   rawTraces,
-  status
+  status,
+  artifacts = []
 }: WorkflowTracePanelProps) {
-  const [activeTab, setActiveTab] = useState<"timeline" | "console">("timeline")
+  const [activeTab, setActiveTab] = useState<"timeline" | "console" | "artifacts">("timeline")
+
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
 
   const toggleExpand = (id: string) => {
@@ -305,6 +321,44 @@ export function WorkflowTracePanel({
       )
     }
 
+    if (type === "artifact") {
+      const artifact = data as AgentArtifact
+      const isExpanded = expandedItems[artifact.id] || false
+      return (
+        <div key={artifact.id} className="relative pl-8 pb-6 border-l border-border/60 last:pb-0 last:border-transparent">
+          {/* Timeline Node Icon: FileText style icon */}
+          <div className="absolute -left-3 top-1 w-6 h-6 rounded-full bg-indigo-500 border-2 border-background flex items-center justify-center shadow-sm">
+            <FileText size={12} className="text-white" />
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <span className="text-xs text-muted-foreground font-mono">{formatTime(artifact.created_at)}</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase tracking-wider self-start sm:self-auto font-mono">
+              {artifact.artifact_type}
+            </span>
+          </div>
+          <h4 className="mt-1 text-sm font-bold text-foreground">Handoff: {artifact.title}</h4>
+          <p className="mt-1 text-xs text-muted-foreground font-medium">{artifact.summary}</p>
+          
+          {artifact.content_json && Object.keys(artifact.content_json).length > 0 && (
+            <div className="mt-2">
+              <button 
+                onClick={() => toggleExpand(artifact.id)}
+                className="text-xs text-indigo-500 hover:text-indigo-600 flex items-center gap-1 font-medium"
+              >
+                {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                {isExpanded ? "Hide Payload" : "View Structured Payload"}
+              </button>
+              {isExpanded && (
+                <pre className="mt-2 p-3 text-xs bg-muted/50 rounded-lg overflow-x-auto border font-mono max-h-48 text-muted-foreground">
+                  {JSON.stringify(artifact.content_json, null, 2)}
+                </pre>
+              )}
+            </div>
+          )}
+        </div>
+      )
+    }
+
     return null
   }
 
@@ -322,6 +376,16 @@ export function WorkflowTracePanel({
             }`}
           >
             Execution Flow
+          </button>
+          <button
+            onClick={() => setActiveTab("artifacts")}
+            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+              activeTab === "artifacts" 
+                ? "bg-background text-foreground shadow-sm" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Handoff Artifacts
           </button>
           <button
             onClick={() => setActiveTab("console")}
@@ -395,6 +459,54 @@ export function WorkflowTracePanel({
               <div className="my-2 ml-3">
                 {traceItems.map((item) => renderTimelineItem(item))}
               </div>
+            </div>
+          )}
+        </div>
+      ) : activeTab === "artifacts" ? (
+        <div className="space-y-4 pt-2">
+          {artifacts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed rounded-xl bg-muted/10">
+              <FileText className="w-10 h-10 text-muted-foreground/60 mb-3 animate-pulse" />
+              <p className="text-sm font-bold text-foreground">No Handoff Artifacts Yet</p>
+              <p className="text-xs text-muted-foreground max-w-xs mt-1 leading-normal">
+                Handoff artifacts will appear here as each agent finishes its workflow stage.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 max-h-[500px] overflow-y-auto pr-1">
+              {artifacts.map((artifact) => {
+                const isExpanded = expandedItems[artifact.id] || false
+                return (
+                  <div key={artifact.id} className="p-4 bg-muted/30 border border-border/80 rounded-xl space-y-3 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-2">
+                      <div>
+                        <span className="text-xs text-muted-foreground font-mono block mb-0.5">{formatTime(artifact.created_at)}</span>
+                        <span className="text-sm font-bold text-primary">{artifact.title}</span>
+                      </div>
+                      <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono self-start sm:self-auto uppercase tracking-wider">
+                        {artifact.artifact_type}
+                      </span>
+                    </div>
+                    <p className="text-xs text-foreground font-medium leading-relaxed">{artifact.summary}</p>
+                    {artifact.content_json && Object.keys(artifact.content_json).length > 0 && (
+                      <div className="pt-1">
+                        <button 
+                          onClick={() => toggleExpand(artifact.id)}
+                          className="text-xs text-indigo-500 hover:text-indigo-600 flex items-center gap-1 font-medium"
+                        >
+                          {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          {isExpanded ? "Hide Payload" : "View Structured Payload"}
+                        </button>
+                        {isExpanded && (
+                          <pre className="mt-2 p-3 text-xs bg-background border rounded-lg overflow-x-auto font-mono max-h-60 text-muted-foreground">
+                            {JSON.stringify(artifact.content_json, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

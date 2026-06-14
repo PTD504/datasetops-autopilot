@@ -6,5 +6,5 @@ from .sample import Sample, Evaluation, ReviewDecision
 from .export import Export
 from .trace import Trace
 from .usage import LLMUsageRecord
-from .logging_models import AgentRun, ToolCallLog, WorkflowEvent
+from .logging_models import AgentRun, ToolCallLog, WorkflowEvent, AgentArtifact
 

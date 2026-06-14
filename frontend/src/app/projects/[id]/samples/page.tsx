@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -127,9 +127,34 @@ function EvidencePanel({ sample }: { sample: SampleData }) {
 
 export default function SamplesReview() {
   const params = useParams()
+  const router = useRouter()
   const id = params.id as string
   const [samples, setSamples] = useState<SampleData[]>([])
   const [expandedSampleIds, setExpandedSampleIds] = useState<Record<string, boolean>>({})
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+
+  const handleApproveAndExport = async () => {
+    setExporting(true)
+    setExportError(null)
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/samples/approve-and-export`, {
+        method: "POST"
+      })
+      if (res.ok) {
+        router.push(`/projects/${id}`)
+      } else {
+        const errData = await res.json()
+        setExportError(errData.detail || "Failed to finalize sample review and build export.")
+      }
+    } catch (e) {
+      console.error(e)
+      setExportError("Network error: Failed to connect to server.")
+    } finally {
+      setExporting(false)
+    }
+  }
+
 
   // Edit Modal States
   const [editingSample, setEditingSample] = useState<SampleData | null>(null)
@@ -257,13 +282,38 @@ export default function SamplesReview() {
   return (
     <div className="container mx-auto max-w-[1600px] px-4 py-8">
       <Card className="shadow-lg border-primary/10">
-        <CardHeader className="bg-muted/30 pb-6 border-b">
-          <CardTitle className="text-2xl">Human-in-the-Loop Workbench</CardTitle>
-          <CardDescription className="text-base mt-2">
-            Review the generated evaluation samples and verify document grounding evidence. The autonomous agent has already applied self-reflection and repair loops where necessary.
-          </CardDescription>
+        <CardHeader className="bg-muted/30 pb-6 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="space-y-2">
+            <CardTitle className="text-2xl">Human-in-the-Loop Workbench</CardTitle>
+            <CardDescription className="text-base mt-2">
+              Review the generated evaluation samples and verify document grounding evidence. The autonomous agent has already applied self-reflection and repair loops where necessary.
+            </CardDescription>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+            <Button variant="outline" onClick={() => router.push(`/projects/${id}`)} disabled={exporting}>
+              Back to Project
+            </Button>
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+              onClick={handleApproveAndExport}
+              disabled={exporting || samples.length === 0}
+            >
+              {exporting ? "Building Export..." : "Approve & Export"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="pt-6">
+          {exportError && (
+            <div className="mb-4 p-4 text-sm rounded-lg border border-red-200 bg-red-50 text-red-800 font-semibold">
+              {exportError}
+            </div>
+          )}
+          {exporting && (
+            <div className="mb-6 p-6 rounded-lg border border-primary/20 bg-primary/5 flex flex-col items-center justify-center gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <p className="text-sm font-bold text-primary animate-pulse">Building benchmark export package... Please wait.</p>
+            </div>
+          )}
           <div className="hidden overflow-hidden rounded-md border lg:block">
             <Table className="table-fixed">
               <colgroup>
@@ -408,6 +458,19 @@ export default function SamplesReview() {
                 <p>No samples generated or processing yet. Check back soon.</p>
               </div>
             )}
+          </div>
+          
+          <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
+            <Button variant="outline" onClick={() => router.push(`/projects/${id}`)} disabled={exporting}>
+              Back to Project Page
+            </Button>
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-6 py-5 text-sm h-auto shadow-md"
+              onClick={handleApproveAndExport}
+              disabled={exporting || samples.length === 0}
+            >
+              {exporting ? "Building Export Package..." : "Approve reviewed samples and build export"}
+            </Button>
           </div>
         </CardContent>
       </Card>

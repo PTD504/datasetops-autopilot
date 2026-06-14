@@ -45,3 +45,17 @@ class WorkflowEvent(Base):
     message = Column(Text, nullable=False)
     event_metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class AgentArtifact(Base):
+    __tablename__ = "agent_artifacts"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(String, ForeignKey("projects.id"), nullable=False)
+    agent_run_id = Column(String, ForeignKey("agent_runs.id"), nullable=True)
+    artifact_type = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    summary = Column(Text, nullable=True)
+    content_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
