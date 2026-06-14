@@ -27,6 +27,43 @@ class QwenClient:
 
     def generate_json(self, prompt: str, system_prompt: str = "You are a helpful assistant. Output JSON only.", _retry_count: int = 0) -> Dict[Any, Any]:
         """
+        Calls Qwen and expects a JSON response, logging the tool call safely.
+        """
+        import time
+        from backend.services.workflow_logger import log_tool_call
+
+        start_time = time.time()
+        status = "success"
+        output_summary = ""
+        mode = "mock" if self.use_mock else "real"
+        input_summary = f"Mode: {mode}, Model: {self.model}, Agent: {self.agent_name}, PromptLen: {len(prompt)}, SystemPromptLen: {len(system_prompt)}"
+
+        try:
+            result = self._generate_json_impl(prompt, system_prompt, _retry_count)
+            if isinstance(result, dict):
+                output_summary = f"Keys generated: {list(result.keys())}"
+            else:
+                output_summary = "Non-dict response generated"
+            return result
+        except Exception as e:
+            status = "error"
+            output_summary = f"Error: {str(e)}"
+            raise e
+        finally:
+            latency_ms = int((time.time() - start_time) * 1000)
+            if self.db and self.project_id:
+                log_tool_call(
+                    db=self.db,
+                    project_id=self.project_id,
+                    tool_name=f"QwenClient.{self.agent_name}.generate_json",
+                    input_summary=input_summary,
+                    output_summary=output_summary,
+                    status=status,
+                    latency_ms=latency_ms
+                )
+
+    def _generate_json_impl(self, prompt: str, system_prompt: str = "You are a helpful assistant. Output JSON only.", _retry_count: int = 0) -> Dict[Any, Any]:
+        """
         Calls Qwen and expects a JSON response.
         """
         if self.use_mock:

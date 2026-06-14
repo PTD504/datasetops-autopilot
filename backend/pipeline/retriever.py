@@ -11,33 +11,60 @@ class NaiveRetriever:
         Naive keyword-based retrieval.
         For MVP, retrieves chunks that contain any of the keywords in the query.
         """
-        # A simple fallback when no chunks exist
-        chunks = self.db.query(Chunk).filter(Chunk.project_id == project_id).all()
-        if not chunks:
-            return []
+        import time
+        from backend.services.workflow_logger import log_tool_call
 
-        # Basic keyword scoring
-        keywords = set(query.lower().split())
-        scored_chunks = []
+        start_time = time.time()
+        status = "success"
+        output_summary = ""
 
-        for chunk in chunks:
-            score = sum(1 for kw in keywords if kw in chunk.text.lower())
-            if score > 0:
-                scored_chunks.append((score, chunk))
+        try:
+            # A simple fallback when no chunks exist
+            chunks = self.db.query(Chunk).filter(Chunk.project_id == project_id).all()
+            if not chunks:
+                output_summary = "No chunks available in db"
+                return []
 
-        # Sort by score and take top K
-        scored_chunks.sort(key=lambda x: x[0], reverse=True)
-        top_chunks = [c[1] for c in scored_chunks[:top_k]]
+            # Basic keyword scoring
+            keywords = set(query.lower().split())
+            scored_chunks = []
 
-        # Fallback to random/first chunks if no keyword match
-        if not top_chunks and chunks:
-            top_chunks = chunks[:top_k]
+            for chunk in chunks:
+                score = sum(1 for kw in keywords if kw in chunk.text.lower())
+                if score > 0:
+                    scored_chunks.append((score, chunk))
 
-        return [
-            {
-                "id": c.id,
-                "document_id": c.document_id,
-                "text": c.text
-            }
-            for c in top_chunks
-        ]
+            # Sort by score and take top K
+            scored_chunks.sort(key=lambda x: x[0], reverse=True)
+            top_chunks = [c[1] for c in scored_chunks[:top_k]]
+
+            # Fallback to random/first chunks if no keyword match
+            if not top_chunks and chunks:
+                top_chunks = chunks[:top_k]
+
+            result = [
+                {
+                    "id": c.id,
+                    "document_id": c.document_id,
+                    "text": c.text
+                }
+                for c in top_chunks
+            ]
+            output_summary = f"Retrieved {len(result)} chunks"
+            return result
+        except Exception as e:
+            status = "error"
+            output_summary = f"Error: {str(e)}"
+            raise e
+        finally:
+            latency_ms = int((time.time() - start_time) * 1000)
+            log_tool_call(
+                db=self.db,
+                project_id=project_id,
+                tool_name="NaiveRetriever.retrieve",
+                input_summary=f"query: '{query[:100]}...', top_k: {top_k}",
+                output_summary=output_summary[:200],
+                status=status,
+                latency_ms=latency_ms
+            )
+

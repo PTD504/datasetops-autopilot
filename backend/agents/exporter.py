@@ -20,7 +20,7 @@ class ExportReportAgent(BaseAgent):
 
         project = self.db.query(Project).filter(Project.id == self.project_id).first()
         plan = self.db.query(BenchmarkPlan).filter(BenchmarkPlan.project_id == self.project_id).first()
-        samples = self.db.query(Sample).filter(Sample.project_id == self.project_id, Sample.status == SampleStatus.APPROVED).all()
+        samples = self.db.query(Sample).filter(Sample.project_id == self.project_id, Sample.status != SampleStatus.REJECTED).all()
 
         export_dir = f"backend/exports/{self.project_id}"
         os.makedirs(export_dir, exist_ok=True)
