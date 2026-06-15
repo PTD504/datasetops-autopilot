@@ -8,6 +8,7 @@ import io
 from backend.core.database import Base, engine, SessionLocal
 from backend.models.logging_models import AgentRun, ToolCallLog, WorkflowEvent
 from backend.models.project import Project
+from backend.core.config import settings
 
 Base.metadata.create_all(bind=engine)
 client = TestClient(app)
@@ -150,9 +151,9 @@ def test_integration_workflow_logging():
         assert len(trace) > 0
 
     finally:
-        export_dir = f"backend/exports/{project_id}"
+        export_dir = os.path.join(settings.EXPORTS_DIR, project_id)
         if os.path.exists(export_dir):
             shutil.rmtree(export_dir)
-        upload_dir = f"backend/uploads/{project_id}"
+        upload_dir = os.path.join(settings.UPLOADS_DIR, project_id)
         if os.path.exists(upload_dir):
             shutil.rmtree(upload_dir)

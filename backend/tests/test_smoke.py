@@ -6,6 +6,7 @@ import os
 import shutil
 import io
 from backend.core.database import Base, engine
+from backend.core.config import settings
 
 # Initialize db for tests
 Base.metadata.create_all(bind=engine)
@@ -78,7 +79,7 @@ def test_full_mock_workflow():
         assert len(samples) > 0
 
         # 6. Check export files exist (local fallback)
-        export_dir = f"backend/exports/{project_id}"
+        export_dir = os.path.join(settings.EXPORTS_DIR, project_id)
         assert os.path.exists(os.path.join(export_dir, "dataset_card.md"))
         assert os.path.exists(os.path.join(export_dir, "quality_report.md"))
         assert os.path.exists(os.path.join(export_dir, "rag_eval.jsonl"))
@@ -119,9 +120,9 @@ def test_full_mock_workflow():
         trace_types = [item["type"] for item in trace_items]
         assert "artifact" in trace_types
     finally:
-        export_dir = f"backend/exports/{project_id}"
+        export_dir = os.path.join(settings.EXPORTS_DIR, project_id)
         if os.path.exists(export_dir):
             shutil.rmtree(export_dir)
-        upload_dir = f"backend/uploads/{project_id}"
+        upload_dir = os.path.join(settings.UPLOADS_DIR, project_id)
         if os.path.exists(upload_dir):
             shutil.rmtree(upload_dir)

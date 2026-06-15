@@ -1,9 +1,12 @@
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
 from typing import Optional
+from pathlib import Path
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "sqlite:///./datasetops.db" # fallback
+    DATABASE_URL: str = f"sqlite:///{BACKEND_DIR.as_posix()}/datasetops.db" # fallback
     BACKEND_CORS_ORIGINS: str = '["http://localhost:3000"]'
 
     QWEN_API_KEY: Optional[str] = None
@@ -17,7 +20,9 @@ class Settings(BaseSettings):
     ALIBABA_CLOUD_OSS_REGION: Optional[str] = None
 
     STORAGE_MODE: str = "local"
-    LOCAL_STORAGE_DIR: str = "backend/storage"
+    LOCAL_STORAGE_DIR: str = (BACKEND_DIR / "storage").as_posix()
+    EXPORTS_DIR: str = (BACKEND_DIR / "exports").as_posix()
+    UPLOADS_DIR: str = (BACKEND_DIR / "uploads").as_posix()
     MOCK_LLM: bool = True
     ALLOW_LLM_FALLBACK: bool = True
     RUN_MODE: str = "mock"

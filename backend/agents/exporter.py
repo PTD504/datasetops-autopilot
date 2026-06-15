@@ -4,6 +4,7 @@ from .base import BaseAgent
 from backend.models import Project, Sample, BenchmarkPlan, Export, Evaluation
 from backend.models.enums import SampleStatus
 from backend.wrappers.oss_client import AlibabaOSSClient
+from backend.core.config import settings
 import json
 import os
 import zipfile
@@ -22,7 +23,7 @@ class ExportReportAgent(BaseAgent):
         plan = self.db.query(BenchmarkPlan).filter(BenchmarkPlan.project_id == self.project_id).first()
         samples = self.db.query(Sample).filter(Sample.project_id == self.project_id, Sample.status != SampleStatus.REJECTED).all()
 
-        export_dir = f"backend/exports/{self.project_id}"
+        export_dir = os.path.join(settings.EXPORTS_DIR, self.project_id)
         os.makedirs(export_dir, exist_ok=True)
 
         # 1. rag_eval.jsonl & answer_key.jsonl

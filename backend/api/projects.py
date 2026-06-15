@@ -146,8 +146,8 @@ async def upload_document(project_id: str, file: UploadFile = File(...), db: Ses
     safe_filename = Path(file.filename or "upload.txt").name
 
     # Store locally for fallback
-    os.makedirs(f"backend/uploads/{project_id}", exist_ok=True)
-    file_path = f"backend/uploads/{project_id}/{safe_filename}"
+    os.makedirs(os.path.join(settings.UPLOADS_DIR, project_id), exist_ok=True)
+    file_path = os.path.join(settings.UPLOADS_DIR, project_id, safe_filename)
     with open(file_path, "wb") as f:
         f.write(content)
 
@@ -954,7 +954,7 @@ def download_export(project_id: str, db: Session = Depends(get_db)):
 
     if not local_path:
         # Check backend build directory fallback
-        p = os.path.join("backend/exports", project_id, "export.zip")
+        p = os.path.join(settings.EXPORTS_DIR, project_id, "export.zip")
         if os.path.exists(p):
             local_path = p
 
