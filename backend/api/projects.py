@@ -229,28 +229,42 @@ def _run_initial_workflow(project_id: str):
         log_workflow_event(db, project_id, "source_analysis_started", "Source document analysis agent run started.")
 
         with log_agent_run(db, project_id, "SourceUnderstandingAgent", f"Analyzing {len(docs)} documents") as agent_logger:
+            # Query existing plan categories if available
+            from backend.models import BenchmarkPlan, Chunk
+            plan = db.query(BenchmarkPlan).filter(BenchmarkPlan.project_id == project_id).first()
+            plan_categories = plan.categories if plan else None
+            project_chunks = db.query(Chunk).filter(Chunk.project_id == project_id).all()
+
             source_agent = SourceUnderstandingAgent(db, project_id)
-            summary, warnings = source_agent.run()
+            result = source_agent.run(
+                docs=docs,
+                chunks=project_chunks,
+                benchmark_request=project.benchmark_request,
+                plan_categories=plan_categories
+            )
+            summary = result["summary"]
+            warnings = result["warnings"]
+            report = result["report"]
+
             agent_logger.update(
                 decision_summary=summary,
-                output_json={"summary": summary, "warnings": warnings},
+                output_json={
+                    "summary": summary,
+                    "warnings": warnings,
+                    "recommended_adjustments_to_plan": report.get("recommended_adjustments_to_plan", []),
+                    "report": report
+                },
                 warnings=warnings
             )
 
         # Log Source Understanding Report Artifact
-        chunk_count = db.query(Chunk).filter(Chunk.project_id == project_id).count()
         log_agent_artifact(
             db=db,
             project_id=project_id,
             artifact_type="source_understanding_report",
             title="Source Understanding Report",
-            summary=f"Analyzed {len(docs)} documents containing {chunk_count} chunks. Identified {len(warnings)} warning(s).",
-            content_json={
-                "document_count": len(docs),
-                "chunk_count": chunk_count,
-                "source_warnings": warnings,
-                "confidence_score": 0.9 if not warnings else 0.7
-            },
+            summary=summary,
+            content_json=report,
             agent_run_id=agent_logger.run_id
         )
 

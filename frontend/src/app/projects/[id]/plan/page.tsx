@@ -20,12 +20,33 @@ interface PlanData {
   source_warnings?: string[];
 }
 
+interface SourceUnderstandingReport {
+  document_summaries: {
+    document_id: string;
+    filename: string;
+    chunk_count: number;
+  }[];
+  coverage_by_category: Record<string, {
+    coverage_level: string;
+    coverage_score: number;
+    matching_chunk_ids: string[];
+    matching_snippets: string[];
+  }>;
+  strong_sections: string[];
+  weak_sections: string[];
+  unsupported_categories: string[];
+  source_warnings: string[];
+  recommended_adjustments_to_plan: string[];
+  confidence_score: number;
+}
+
 export default function PlanApproval() {
   const params = useParams()
   const id = params.id as string
   const router = useRouter()
   const [plan, setPlan] = useState<PlanData | null>(null)
   const [projectState, setProjectState] = useState<string | null>(null)
+  const [report, setReport] = useState<SourceUnderstandingReport | null>(null)
 
   // Edit States
   const [isEditing, setIsEditing] = useState(false)
@@ -50,6 +71,18 @@ export default function PlanApproval() {
     fetch(`${apiUrl}/api/projects/${id}/plan`)
       .then(r => r.json())
       .then(setPlan)
+      .catch(console.error)
+
+    fetch(`${apiUrl}/api/projects/${id}/artifacts`)
+      .then(r => r.json())
+      .then(artifacts => {
+        if (Array.isArray(artifacts)) {
+          const rep = artifacts.find((a: { artifact_type: string; content_json: unknown }) => a.artifact_type === "source_understanding_report")
+          if (rep) {
+            setReport(rep.content_json as SourceUnderstandingReport)
+          }
+        }
+      })
       .catch(console.error)
   }
 
@@ -314,6 +347,62 @@ export default function PlanApproval() {
                   </div>
                 </CardContent>
               </Card>
+
+              {report && (
+                <Card className="border-secondary/30 shadow-none">
+                  <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+                    <CardTitle className="text-sm uppercase text-muted-foreground tracking-wider">Source Coverage Audit</CardTitle>
+                    {report.confidence_score !== undefined && (
+                      <Badge 
+                        className={
+                          report.confidence_score >= 0.8
+                            ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20"
+                            : report.confidence_score >= 0.4
+                            ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
+                            : "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20"
+                        }
+                        variant="outline"
+                      >
+                        Confidence: {Math.round(report.confidence_score * 100)}%
+                      </Badge>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {report.coverage_by_category && Object.keys(report.coverage_by_category).length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-semibold text-muted-foreground uppercase">Category Support</div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {Object.entries(report.coverage_by_category).map(([category, info]) => {
+                            const level = info.coverage_level;
+                            let badgeColor = "bg-red-500/10 text-red-700 border-red-500/20";
+                            if (level === "strong") badgeColor = "bg-green-500/10 text-green-700 border-green-500/20";
+                            else if (level === "medium") badgeColor = "bg-blue-500/10 text-blue-700 border-blue-500/20";
+                            else if (level === "weak") badgeColor = "bg-yellow-500/10 text-yellow-700 border-yellow-500/20";
+
+                            return (
+                              <div key={category} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 border border-secondary/15 text-sm">
+                                <span className="font-medium text-foreground">{category}</span>
+                                <Badge className={badgeColor} variant="outline">{level}</Badge>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {report.recommended_adjustments_to_plan && report.recommended_adjustments_to_plan.length > 0 && (
+                      <div className="space-y-1.5 pt-3 border-t border-border/40">
+                        <div className="text-xs font-semibold text-muted-foreground uppercase">Recommended Adjustments</div>
+                        <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-1">
+                          {report.recommended_adjustments_to_plan.map((adj: string, idx: number) => (
+                            <li key={idx} className="leading-relaxed">{adj}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {plan.quality_rules && plan.quality_rules.length > 0 && (
                 <Card className="border-secondary/30 shadow-none">

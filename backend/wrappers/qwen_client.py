@@ -145,6 +145,15 @@ class QwenClient:
         # Check for specific Vietnamese demo
         is_vietnamese_demo = "vietnamese rag benchmark" in lower_prompt or "vietnamese" in lower_prompt
 
+        if "extract" in lower_prompt and "categories" in lower_prompt:
+            if is_vietnamese_demo:
+                return {
+                    "categories": ["refund policy", "shipping policy", "warranty", "order cancellation", "payment policy"]
+                }
+            return {
+                "categories": ["general", "specific"]
+            }
+
         if "plan" in lower_prompt or "benchmark request" in lower_prompt:
             quality_rules_mock = ["Answerable samples must be grounded in the source documents. Intentional unanswerable samples are allowed when clearly labeled as unanswerable and the expected answer states that the documents do not contain enough information."]
 
