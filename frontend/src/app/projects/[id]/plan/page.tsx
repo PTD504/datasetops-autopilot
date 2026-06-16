@@ -40,6 +40,109 @@ interface SourceUnderstandingReport {
   confidence_score: number;
 }
 
+function normalizeReport(data: unknown): SourceUnderstandingReport {
+  const defaultReport: SourceUnderstandingReport = {
+    document_summaries: [],
+    coverage_by_category: {},
+    strong_sections: [],
+    weak_sections: [],
+    unsupported_categories: [],
+    source_warnings: [],
+    recommended_adjustments_to_plan: [],
+    confidence_score: 0
+  };
+
+  if (!data || typeof data !== "object") {
+    return defaultReport;
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  // Normalize document_summaries
+  const docSummaries: { document_id: string; filename: string; chunk_count: number }[] = [];
+  if (Array.isArray(obj.document_summaries)) {
+    obj.document_summaries.forEach((d: unknown) => {
+      if (d && typeof d === "object") {
+        const docObj = d as Record<string, unknown>;
+        docSummaries.push({
+          document_id: typeof docObj.document_id === "string" ? docObj.document_id : "",
+          filename: typeof docObj.filename === "string" ? docObj.filename : "Unknown file",
+          chunk_count: typeof docObj.chunk_count === "number" ? docObj.chunk_count : 0
+        });
+      }
+    });
+  }
+
+  // Normalize coverage_by_category
+  const coverageByCategory: Record<string, {
+    coverage_level: string;
+    coverage_score: number;
+    matching_chunk_ids: string[];
+    matching_snippets: string[];
+  }> = {};
+
+  if (obj.coverage_by_category && typeof obj.coverage_by_category === "object") {
+    const covObj = obj.coverage_by_category as Record<string, unknown>;
+    Object.entries(covObj).forEach(([category, info]) => {
+      if (info && typeof info === "object") {
+        const infoObj = info as Record<string, unknown>;
+        const chunkIds: string[] = [];
+        if (Array.isArray(infoObj.matching_chunk_ids)) {
+          infoObj.matching_chunk_ids.forEach((id: unknown) => {
+            if (typeof id === "string") chunkIds.push(id);
+          });
+        }
+        const snippets: string[] = [];
+        if (Array.isArray(infoObj.matching_snippets)) {
+          infoObj.matching_snippets.forEach((snip: unknown) => {
+            if (typeof snip === "string") snippets.push(snip);
+          });
+        }
+
+        coverageByCategory[category] = {
+          coverage_level: typeof infoObj.coverage_level === "string" ? infoObj.coverage_level : "unsupported",
+          coverage_score: typeof infoObj.coverage_score === "number" ? infoObj.coverage_score : 0,
+          matching_chunk_ids: chunkIds,
+          matching_snippets: snippets
+        };
+      } else {
+        coverageByCategory[category] = {
+          coverage_level: "unsupported",
+          coverage_score: 0,
+          matching_chunk_ids: [],
+          matching_snippets: []
+        };
+      }
+    });
+  }
+
+  // Normalize list fields safely
+  const getArrayOfStrings = (arr: unknown): string[] => {
+    const result: string[] = [];
+    if (Array.isArray(arr)) {
+      arr.forEach((item: unknown) => {
+        if (typeof item === "string") {
+          result.push(item);
+        }
+      });
+    }
+    return result;
+  };
+
+  const confidenceScore = typeof obj.confidence_score === "number" ? obj.confidence_score : 0;
+
+  return {
+    document_summaries: docSummaries,
+    coverage_by_category: coverageByCategory,
+    strong_sections: getArrayOfStrings(obj.strong_sections),
+    weak_sections: getArrayOfStrings(obj.weak_sections),
+    unsupported_categories: getArrayOfStrings(obj.unsupported_categories),
+    source_warnings: getArrayOfStrings(obj.source_warnings),
+    recommended_adjustments_to_plan: getArrayOfStrings(obj.recommended_adjustments_to_plan),
+    confidence_score: confidenceScore
+  };
+}
+
 export default function PlanApproval() {
   const params = useParams()
   const id = params.id as string
@@ -77,14 +180,32 @@ export default function PlanApproval() {
       .then(r => r.json())
       .then(artifacts => {
         if (Array.isArray(artifacts)) {
-          const rep = artifacts.find((a: { artifact_type: string; content_json: unknown }) => a.artifact_type === "source_understanding_report")
-          if (rep) {
-            setReport(rep.content_json as SourceUnderstandingReport)
+          const reports = artifacts.filter(
+            (a: unknown) => {
+              if (a && typeof a === "object") {
+                const artObj = a as Record<string, unknown>;
+                return artObj.artifact_type === "source_understanding_report";
+              }
+              return false;
+            }
+          ) as { artifact_type: string; created_at: string; content_json: unknown }[];
+          
+          if (reports.length > 0) {
+            // Sort report artifacts by created_at descending
+            reports.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            setReport(normalizeReport(reports[0].content_json));
           }
         }
       })
       .catch(console.error)
   }
+
+  const coverageByCategory = report?.coverage_by_category || {};
+  const categoryEntries = Object.entries(coverageByCategory);
+  const strongCount = categoryEntries.filter(([, info]) => info.coverage_level?.toLowerCase() === "strong").length;
+  const mediumCount = categoryEntries.filter(([, info]) => info.coverage_level?.toLowerCase() === "medium").length;
+  const weakCount = categoryEntries.filter(([, info]) => info.coverage_level?.toLowerCase() === "weak").length;
+  const unsupportedCount = categoryEntries.filter(([, info]) => info.coverage_level?.toLowerCase() === "unsupported").length;
 
   useEffect(() => {
     fetchPlanAndProject()
@@ -348,56 +469,157 @@ export default function PlanApproval() {
                 </CardContent>
               </Card>
 
-              {report && (
+              {!report ? (
+                <Card className="border-secondary/30 shadow-none bg-muted/5 border-dashed">
+                  <CardContent className="py-6 text-center">
+                    <p className="text-sm text-muted-foreground">Source coverage audit is not available yet.</p>
+                  </CardContent>
+                </Card>
+              ) : (
                 <Card className="border-secondary/30 shadow-none">
-                  <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="text-sm uppercase text-muted-foreground tracking-wider">Source Coverage Audit</CardTitle>
+                  <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b bg-muted/10">
+                    <div>
+                      <CardTitle className="text-lg font-bold">Source Coverage Audit</CardTitle>
+                      <CardDescription className="text-xs">
+                        This audit checks whether uploaded documents support the proposed benchmark categories.
+                      </CardDescription>
+                    </div>
                     {report.confidence_score !== undefined && (
-                      <Badge 
-                        className={
-                          report.confidence_score >= 0.8
-                            ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20"
-                            : report.confidence_score >= 0.4
-                            ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20"
-                            : "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20"
-                        }
-                        variant="outline"
-                      >
-                        Confidence: {Math.round(report.confidence_score * 100)}%
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Confidence Score:</span>
+                        <Badge 
+                          className={
+                            report.confidence_score >= 0.8
+                              ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20 px-2.5 py-1 text-sm font-bold"
+                              : report.confidence_score >= 0.4
+                              ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20 px-2.5 py-1 text-sm font-bold"
+                              : "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20 px-2.5 py-1 text-sm font-bold"
+                          }
+                          variant="outline"
+                        >
+                          {Math.round(report.confidence_score * 100)}%
+                        </Badge>
+                      </div>
                     )}
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {report.coverage_by_category && Object.keys(report.coverage_by_category).length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold text-muted-foreground uppercase">Category Support</div>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {Object.entries(report.coverage_by_category).map(([category, info]) => {
-                            const level = info.coverage_level;
-                            let badgeColor = "bg-red-500/10 text-red-700 border-red-500/20";
-                            if (level === "strong") badgeColor = "bg-green-500/10 text-green-700 border-green-500/20";
-                            else if (level === "medium") badgeColor = "bg-blue-500/10 text-blue-700 border-blue-500/20";
-                            else if (level === "weak") badgeColor = "bg-yellow-500/10 text-yellow-700 border-yellow-500/20";
+                  <CardContent className="space-y-6 pt-6">
+                    {/* Summary Counts */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="p-3 bg-green-500/5 border border-green-500/10 rounded-xl text-center shadow-sm">
+                        <div className="text-2xl font-bold text-green-700 dark:text-green-400">{strongCount}</div>
+                        <div className="text-xs text-muted-foreground font-medium">Strong</div>
+                      </div>
+                      <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl text-center shadow-sm">
+                        <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">{mediumCount}</div>
+                        <div className="text-xs text-muted-foreground font-medium">Medium</div>
+                      </div>
+                      <div className="p-3 bg-yellow-500/5 border border-yellow-500/10 rounded-xl text-center shadow-sm">
+                        <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{weakCount}</div>
+                        <div className="text-xs text-muted-foreground font-medium">Weak</div>
+                      </div>
+                      <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl text-center shadow-sm">
+                        <div className="text-2xl font-bold text-red-700 dark:text-red-400">{unsupportedCount}</div>
+                        <div className="text-xs text-muted-foreground font-semibold">Unsupported</div>
+                      </div>
+                    </div>
 
-                            return (
-                              <div key={category} className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 border border-secondary/15 text-sm">
-                                <span className="font-medium text-foreground">{category}</span>
-                                <Badge className={badgeColor} variant="outline">{level}</Badge>
-                              </div>
-                            );
-                          })}
+                    {/* Warning Alerts */}
+                    {(weakCount > 0 || unsupportedCount > 0) && (
+                      <div className="p-4 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 text-sm text-red-800 dark:text-red-300 space-y-1 shadow-sm">
+                        <div className="font-semibold flex items-center gap-1.5">
+                          ⚠️ Incomplete Source Support Detected
+                        </div>
+                        <div className="text-xs leading-relaxed">
+                          Some proposed benchmark categories have weak or unsupported coverage in the uploaded documents. You can still approve this plan, but sample generation quality for these categories may be degraded. Consider adding more source documents or editing the categories before proceeding.
                         </div>
                       </div>
                     )}
 
+                    {/* Table of Categories */}
+                    {categoryEntries.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Category Details</div>
+                        <div className="overflow-x-auto border border-border/80 rounded-xl">
+                          <table className="w-full text-xs text-left border-collapse">
+                            <thead>
+                              <tr className="bg-muted/40 border-b border-border/80">
+                                <th className="p-3 font-semibold text-muted-foreground">Category</th>
+                                <th className="p-3 font-semibold text-muted-foreground">Level</th>
+                                <th className="p-3 font-semibold text-muted-foreground">Score</th>
+                                <th className="p-3 font-semibold text-muted-foreground">Chunks</th>
+                                <th className="p-3 font-semibold text-muted-foreground">Evidence Snippet</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {categoryEntries.map(([category, info]) => {
+                                const level = info.coverage_level || "unsupported";
+                                const score = info.coverage_score !== undefined ? info.coverage_score : 0;
+                                const chunkCount = info.matching_chunk_ids?.length || 0;
+                                const snippet = info.matching_snippets?.[0] || "No evidence snippet available.";
+                                
+                                let rowClass = "border-b border-border/60 hover:bg-muted/10 transition-colors";
+                                let levelColor = "bg-red-500/10 text-red-700 border-red-500/20";
+                                if (level === "strong") {
+                                  levelColor = "bg-green-500/10 text-green-700 border-green-500/20";
+                                } else if (level === "medium") {
+                                  levelColor = "bg-blue-500/10 text-blue-700 border-blue-500/20";
+                                } else if (level === "weak") {
+                                  levelColor = "bg-yellow-500/10 text-yellow-700 border-yellow-700/20";
+                                } else if (level === "unsupported") {
+                                  // Highlight unsupported categories clearly
+                                  rowClass = "border-b border-red-100 bg-red-500/5 hover:bg-red-500/10 font-medium dark:border-red-950/40";
+                                }
+
+                                return (
+                                  <tr key={category} className={rowClass}>
+                                    <td className="p-3 font-semibold flex items-center gap-1.5">
+                                      {level === "unsupported" && (
+                                        <span className="w-2 h-2 rounded-full bg-red-500 inline-block animate-pulse" title="Unsupported category" />
+                                      )}
+                                      {category}
+                                    </td>
+                                    <td className="p-3">
+                                      <Badge className={`${levelColor} px-2 py-0.5 text-[10px] uppercase font-bold`} variant="outline">{level}</Badge>
+                                    </td>
+                                    <td className="p-3 font-mono font-medium">{score.toFixed(2)}</td>
+                                    <td className="p-3 font-mono font-medium">{chunkCount}</td>
+                                    <td className="p-3 text-muted-foreground italic max-w-xs truncate" title={snippet}>
+                                      &ldquo;{snippet}&rdquo;
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Source Warnings */}
+                    {report.source_warnings && report.source_warnings.length > 0 && (
+                      <div className="space-y-1.5 pt-3 border-t border-border/40">
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Source Coverage Warnings</div>
+                        <div className="p-3 rounded-lg border border-yellow-200 bg-yellow-50/50 dark:bg-yellow-500/5 text-xs text-yellow-800 dark:text-yellow-200 space-y-1">
+                          <ul className="list-disc pl-5 space-y-1 font-medium">
+                            {report.source_warnings.map((w: string, idx: number) => (
+                              <li key={idx} className="leading-relaxed">{w}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Recommended adjustments */}
                     {report.recommended_adjustments_to_plan && report.recommended_adjustments_to_plan.length > 0 && (
                       <div className="space-y-1.5 pt-3 border-t border-border/40">
-                        <div className="text-xs font-semibold text-muted-foreground uppercase">Recommended Adjustments</div>
-                        <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-1">
-                          {report.recommended_adjustments_to_plan.map((adj: string, idx: number) => (
-                            <li key={idx} className="leading-relaxed">{adj}</li>
-                          ))}
-                        </ul>
+                        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Recommended Adjustments</div>
+                        <div className="p-3 rounded-lg border border-blue-200 bg-blue-50/50 dark:bg-blue-500/5 text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                          <ul className="list-disc pl-5 space-y-1 font-medium">
+                            {report.recommended_adjustments_to_plan.map((adj: string, idx: number) => (
+                              <li key={idx} className="leading-relaxed">{adj}</li>
+                            ))}
+                          </ul>
+                        </div>
                       </div>
                     )}
                   </CardContent>
@@ -417,6 +639,12 @@ export default function PlanApproval() {
                     </ul>
                   </CardContent>
                 </Card>
+              )}
+
+              {isPreGeneration && report && ((report.source_warnings && report.source_warnings.length > 0) || (report.recommended_adjustments_to_plan && report.recommended_adjustments_to_plan.length > 0)) && (
+                <p className="text-xs text-yellow-600 dark:text-yellow-400 font-semibold text-center mb-4 animate-pulse">
+                  ⚠️ Review the source coverage warnings before approving generation.
+                </p>
               )}
 
               <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t mt-8">
