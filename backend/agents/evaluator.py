@@ -9,8 +9,32 @@ class QualityEvaluatorAgent(BaseAgent):
         super().__init__(db, project_id)
         self.purpose = "Evaluate generated samples and decide if they pass, need repair, or review."
 
-    def evaluate(self, sample: Sample) -> Tuple[Evaluation, bool]:
+    def evaluate(self, sample: Sample, existing_questions: list[str] = None, existing_chunk_combos: list[tuple] = None) -> Tuple[Evaluation, bool]:
         self._log_trace("start_evaluation", {"sample_id": sample.id})
+
+        # Run duplicate checker
+        from backend.tools.duplicate_checker import DuplicateCheckerTool
+        checker = DuplicateCheckerTool(self.db, self.project_id)
+
+        # Determine existing samples for checker
+        existing_samples = self.db.query(Sample).filter(
+            Sample.project_id == self.project_id,
+            Sample.id != sample.id
+        ).all()
+
+        check_result = checker.check(
+            candidate_question=sample.question,
+            candidate_source_chunk_ids=sample.source_chunk_ids,
+            candidate_category=sample.category,
+            existing_samples=existing_samples
+        )
+
+        duplicate_score = check_result.duplicate_score
+        novelty_score = 1.0
+        novelty_issue = None
+        if duplicate_score >= 0.82:
+            novelty_score = 1.0 - duplicate_score
+            novelty_issue = f"Low novelty detected: duplicate score is {duplicate_score:.2f} ({check_result.reason})"
 
         # Retrieve context used for the sample
         context_texts = []
@@ -27,6 +51,7 @@ class QualityEvaluatorAgent(BaseAgent):
         Category: {sample.category}
         Difficulty: {sample.difficulty}
         Sample Type: {sample.sample_type}
+        Retry Count: {sample.retry_count}
 
         Output JSON with:
         faithfulness_score (0-1): whether the expected answer is supported by the evidence chunks.
@@ -49,8 +74,17 @@ class QualityEvaluatorAgent(BaseAgent):
 
         response = self.llm.generate_json(prompt, system_prompt="You are an expert RAG Data Evaluator. Output JSON.")
 
+        if duplicate_score >= 0.82:
+            pass
+        else:
+            novelty_score = response.get("novelty_score", 1.0)
+            if self.llm.use_mock and novelty_score == 1.0:
+                novelty_score = 0.92
+
         # Determine actual decision based on thresholds
-        overall_score = response.get("overall_score", 0.0)
+        original_overall = response.get("overall_score", 0.0)
+        overall_score = (original_overall * 0.85) + (novelty_score * 0.15)
+
         faithfulness_score = response.get("faithfulness_score", response.get("grounding_score", 0.0))
         answer_relevance_score = response.get("answer_relevance_score", 0.0)
         hallucination_risk_score = response.get("hallucination_risk_score", 0.0)
@@ -100,6 +134,25 @@ class QualityEvaluatorAgent(BaseAgent):
                 status = SampleStatus.HUMAN_REVIEW
                 needs_repair = False
 
+        issues = response.get("issues", [])
+        if not isinstance(issues, list):
+            issues = []
+        if novelty_issue:
+            issues.append(novelty_issue)
+
+        repair_instruction = response.get("repair_instruction", "")
+
+        if novelty_score < 0.18:
+            repair_instruction = "Regenerate using a different user scenario and evidence angle while preserving category and difficulty."
+            if sample.retry_count < 2:
+                decision = "repair"
+                status = SampleStatus.REPAIRING
+                needs_repair = True
+            else:
+                decision = "human_review"
+                status = SampleStatus.HUMAN_REVIEW
+                needs_repair = False
+
         evaluation = Evaluation(
             sample_id=sample.id,
             grounding_score=response.get("grounding_score", faithfulness_score),
@@ -114,10 +167,11 @@ class QualityEvaluatorAgent(BaseAgent):
             hallucination_risk_score=hallucination_risk_score,
             difficulty_match_score=response.get("difficulty_match_score", 0.0),
             overall_score=overall_score,
+            novelty_score=novelty_score,
             decision=decision,
-            issues=response.get("issues", []),
+            issues=issues,
             evaluator_notes=response.get("evaluator_notes", ""),
-            repair_instruction=response.get("repair_instruction", "")
+            repair_instruction=repair_instruction
         )
 
         self.db.add(evaluation)

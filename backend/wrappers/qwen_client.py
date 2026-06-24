@@ -142,6 +142,69 @@ class QwenClient:
 
         lower_prompt = prompt.lower()
 
+        # Check if slots are provided in the prompt
+        if "slots json:" in lower_prompt:
+            try:
+                start_idx = prompt.lower().find("slots json:") + len("slots json:")
+                slots_str = prompt[start_idx:].strip()
+                slots_data = json.loads(slots_str)
+                
+                try:
+                    from backend.wrappers.mock_data import VIETNAMESE_BENCHMARK_SAMPLES
+                except ImportError:
+                    VIETNAMESE_BENCHMARK_SAMPLES = []
+
+                samples = []
+                for idx, slot in enumerate(slots_data):
+                    category = slot.get("category", "general")
+                    difficulty = slot.get("difficulty", "medium")
+                    sample_type = slot.get("sample_type", "single_hop")
+                    preferred_chunks = slot.get("preferred_chunk_ids", [])
+                    
+                    matched_sample = None
+                    for ms in VIETNAMESE_BENCHMARK_SAMPLES:
+                        if ms.get("category") == category and ms.get("sample_type") == sample_type:
+                            matched_sample = ms
+                            break
+                    
+                    if not matched_sample:
+                        for ms in VIETNAMESE_BENCHMARK_SAMPLES:
+                            if ms.get("category") == category:
+                                matched_sample = ms
+                                break
+                                
+                    if not matched_sample:
+                        for ms in VIETNAMESE_BENCHMARK_SAMPLES:
+                            if ms.get("sample_type") == sample_type:
+                                matched_sample = ms
+                                break
+
+                    if not matched_sample and VIETNAMESE_BENCHMARK_SAMPLES:
+                        matched_sample = VIETNAMESE_BENCHMARK_SAMPLES[idx % len(VIETNAMESE_BENCHMARK_SAMPLES)]
+                        
+                    if matched_sample:
+                        question = matched_sample.get("question", "Mock Question?")
+                        expected_answer = matched_sample.get("expected_answer", "Mock Answer.")
+                        existing_count = sum(1 for s in samples if s["question"].startswith(question))
+                        if existing_count > 0:
+                            question = f"{question} (Var {existing_count})"
+                    else:
+                        question = f"Mock Question for category '{category}', type '{sample_type}'?"
+                        expected_answer = f"Mock Answer for category '{category}', type '{sample_type}'."
+                        
+                    samples.append({
+                        "category": category,
+                        "difficulty": difficulty,
+                        "sample_type": sample_type,
+                        "question": question,
+                        "expected_answer": expected_answer,
+                        "source_chunk_ids": preferred_chunks if preferred_chunks else [f"mock_{category}_chunk_001"]
+                    })
+                
+                return {"samples": samples}
+            except Exception as e:
+                logger.error(f"Error parsing slots from mock prompt: {e}")
+
         # Check for specific Vietnamese demo
         is_vietnamese_demo = "vietnamese rag benchmark" in lower_prompt or "vietnamese" in lower_prompt
 
@@ -182,8 +245,14 @@ class QwenClient:
             is_unanswerable = "sample type: unanswerable" in lower_prompt
             is_multi_hop = "sample type: multi_hop" in lower_prompt
             is_edge_case = "sample type: edge_case" in lower_prompt
+            is_hard = "difficulty: hard" in lower_prompt or "difficulty: 'hard'" in lower_prompt
+            is_retry = "retry count: 0" not in lower_prompt and ("retry count: 1" in lower_prompt or "retry count: 2" in lower_prompt or "attempt" in lower_prompt)
 
-            if "hoàn tiền" in lower_prompt and "14 ngày" not in lower_prompt:
+            if is_hard and is_multi_hop and not is_retry:
+                # Trigger repair
+                from backend.wrappers.mock_data import MOCK_EVALUATION_LOW_SCORE
+                return MOCK_EVALUATION_LOW_SCORE.copy()
+            elif "hoàn tiền" in lower_prompt and "14 ngày" not in lower_prompt and not is_retry:
                  # Trigger repair once
                  return {
                     "faithfulness_score": 0.5,
@@ -245,12 +314,13 @@ class QwenClient:
                     "clarity_score": 0.9,
                     "difficulty_match_score": 0.9,
                     "overall_score": 0.95,
+                    "novelty_score": 0.92,
                     "decision": "pass",
                     "issues": [],
                     "evaluator_notes": "Correctly identified as unanswerable.",
                     "repair_instruction": ""
                 }
-            elif is_multi_hop and "source_chunk_ids" in lower_prompt and lower_prompt.count("chunk_") < 2:
+            elif is_multi_hop and "source_chunk_ids" in lower_prompt and lower_prompt.count("chunk_") < 2 and not is_retry:
                 # Mock a penalty for missing chunks
                  return {
                     "faithfulness_score": 0.6,
@@ -278,11 +348,88 @@ class QwenClient:
                 "clarity_score": 0.9,
                 "difficulty_match_score": 0.9,
                 "overall_score": 0.9,
+                "novelty_score": 0.92,
                 "decision": "pass",
                 "issues": [],
                 "evaluator_notes": "Looks good.",
                 "repair_instruction": ""
             }
+        elif "generate one rag" in lower_prompt or "repair the following rag" in lower_prompt:
+            is_repair = "repair the following rag" in lower_prompt
+            # Find category
+            category = "general"
+            for cat in ["refund policy", "shipping policy", "warranty", "order cancellation", "payment policy"]:
+                if cat in lower_prompt:
+                    category = cat
+                    break
+                    
+            difficulty = "medium"
+            for diff in ["easy", "medium", "hard"]:
+                if diff in lower_prompt:
+                    difficulty = diff
+                    break
+                    
+            sample_type = "single_hop"
+            for st in ["single_hop", "multi_hop", "unanswerable", "edge_case"]:
+                if st in lower_prompt:
+                    sample_type = st
+                    break
+
+            try:
+                from backend.wrappers.mock_data import VIETNAMESE_BENCHMARK_SAMPLES
+            except ImportError:
+                VIETNAMESE_BENCHMARK_SAMPLES = []
+
+            # Match sample in VIETNAMESE_BENCHMARK_SAMPLES
+            matched_sample = None
+            for ms in VIETNAMESE_BENCHMARK_SAMPLES:
+                if ms.get("category") == category and ms.get("sample_type") == sample_type:
+                    matched_sample = ms.copy()
+                    break
+            
+            if not matched_sample:
+                for ms in VIETNAMESE_BENCHMARK_SAMPLES:
+                    if ms.get("category") == category:
+                        matched_sample = ms.copy()
+                        break
+            
+            if not matched_sample:
+                for ms in VIETNAMESE_BENCHMARK_SAMPLES:
+                    if ms.get("sample_type") == sample_type:
+                        matched_sample = ms.copy()
+                        break
+
+            if not matched_sample and VIETNAMESE_BENCHMARK_SAMPLES:
+                matched_sample = VIETNAMESE_BENCHMARK_SAMPLES[0].copy()
+
+            if matched_sample:
+                q_text = matched_sample["question"]
+                ans_text = matched_sample["expected_answer"]
+                
+                # If we are repairing, reflect the change
+                if is_repair:
+                    if "hoàn tiền" in q_text.lower():
+                        ans_text = "Bạn có thể yêu cầu hoàn tiền toàn bộ trong vòng 14 ngày kể từ ngày nhận hàng nếu sản phẩm bị lỗi."
+                    else:
+                        q_text += " (Repaired)"
+                        
+                return {
+                    "category": category,
+                    "difficulty": difficulty,
+                    "sample_type": sample_type,
+                    "question": q_text,
+                    "expected_answer": ans_text,
+                    "source_chunk_ids": matched_sample["source_chunk_ids"]
+                }
+            else:
+                return {
+                    "category": category,
+                    "difficulty": difficulty,
+                    "sample_type": sample_type,
+                    "question": f"Mock question for {category} ({difficulty}, {sample_type})?" + (" (Repaired)" if is_repair else ""),
+                    "expected_answer": f"Mock answer for {category} ({difficulty}, {sample_type}).",
+                    "source_chunk_ids": ["mock_chunk_id"]
+                }
         elif "sample" in lower_prompt or "generate" in lower_prompt:
             if is_vietnamese_demo:
                 try:

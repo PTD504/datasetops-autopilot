@@ -40,9 +40,24 @@ def ensure_project_cancel_columns():
     except Exception as e:
         print(f"Error checking/adding sample columns: {e}")
 
+    try:
+        if inspector.has_table("evaluations"):
+            eval_columns = {column["name"] for column in inspector.get_columns("evaluations")}
+            if "novelty_score" not in eval_columns:
+                with engine.begin() as connection:
+                    connection.execute(text("ALTER TABLE evaluations ADD COLUMN novelty_score FLOAT NULL"))
+    except Exception as e:
+        print(f"Error checking/adding evaluations columns: {e}")
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+# Automatically run schema migrations on import
+try:
+    ensure_project_cancel_columns()
+except Exception as e:
+    pass

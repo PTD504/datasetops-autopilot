@@ -132,3 +132,19 @@ for i in range(2):
         if i == 1:
             new_sample['question'] += " (Câu hỏi phụ)"
         mock_30_samples.append(new_sample)
+
+MOCK_EVALUATION_LOW_SCORE = {
+    "faithfulness_score": 0.5,
+    "answer_relevance_score": 0.7,
+    "context_precision_score": 0.8,
+    "context_recall_score": 0.5,
+    "hallucination_risk_score": 0.1,
+    "answerability_score": 0.9,
+    "clarity_score": 0.9,
+    "difficulty_match_score": 0.8,
+    "overall_score": 0.65,
+    "decision": "repair",
+    "issues": ["Answer lacks details combining both chunks."],
+    "evaluator_notes": "Needs repair.",
+    "repair_instruction": "Regenerate using a different user scenario and evidence angle while preserving category and difficulty."
+}

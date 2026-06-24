@@ -28,28 +28,35 @@ class NaiveRetriever:
             # Basic keyword scoring
             keywords = set(query.lower().split())
             scored_chunks = []
+            total_kw = len(keywords)
 
             for chunk in chunks:
-                score = sum(1 for kw in keywords if kw in chunk.text.lower())
+                match_count = sum(1 for kw in keywords if kw in chunk.text.lower())
+                score = match_count / total_kw if total_kw > 0 else 0.0
                 if score > 0:
                     scored_chunks.append((score, chunk))
 
             # Sort by score and take top K
             scored_chunks.sort(key=lambda x: x[0], reverse=True)
-            top_chunks = [c[1] for c in scored_chunks[:top_k]]
 
-            # Fallback to random/first chunks if no keyword match
-            if not top_chunks and chunks:
-                top_chunks = chunks[:top_k]
-
-            result = [
-                {
+            result = []
+            for score, c in scored_chunks[:top_k]:
+                result.append({
                     "id": c.id,
                     "document_id": c.document_id,
-                    "text": c.text
-                }
-                for c in top_chunks
-            ]
+                    "text": c.text,
+                    "score": score
+                })
+
+            # Fallback to random/first chunks if no keyword match
+            if not result and chunks:
+                for c in chunks[:top_k]:
+                    result.append({
+                        "id": c.id,
+                        "document_id": c.document_id,
+                        "text": c.text,
+                        "score": 0.1
+                    })
             output_summary = f"Retrieved {len(result)} chunks"
             return result
         except Exception as e:

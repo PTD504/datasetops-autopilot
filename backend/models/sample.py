@@ -42,6 +42,7 @@ class Evaluation(Base):
     hallucination_risk_score = Column(Float)
     difficulty_match_score = Column(Float)
     overall_score = Column(Float)
+    novelty_score = Column(Float, nullable=True)
     decision = Column(String) # pass, repair, human_review, reject
     issues = Column(JSON)
     evaluator_notes = Column(Text)

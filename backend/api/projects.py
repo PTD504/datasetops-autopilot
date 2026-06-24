@@ -435,20 +435,161 @@ def _run_generation_workflow(project_id: str):
         project.workflow_state = "GENERATING"
         db.commit()
 
-        generator = BenchmarkGeneratorAgent(db, project_id)
-        evaluator = QualityEvaluatorAgent(db, project_id)
+        # Fetch the latest source_understanding_report if available
+        source_report_json = None
+        source_report_artifact = db.query(AgentArtifact).filter(
+            AgentArtifact.project_id == project_id,
+            AgentArtifact.artifact_type == "source_understanding_report"
+        ).order_by(AgentArtifact.created_at.desc()).first()
+        if source_report_artifact and source_report_artifact.content_json:
+            source_report_json = source_report_artifact.content_json
 
         # Determine total sample count to generate
         total_samples = 10
         if plan.sample_count and isinstance(plan.sample_count, dict):
             total_samples = plan.sample_count.get("total", 10)
 
-        with log_agent_run(db, project_id, "BenchmarkGeneratorAgent", f"Generating {total_samples} samples") as agent_logger:
-            samples = generator.generate(plan, total_samples)
-            agent_logger.update(
-                decision_summary=f"Successfully generated {len(samples)} samples.",
-                output_json={"sample_ids": [s.id for s in samples]}
+        # Run diversity planning
+        from backend.pipeline.retriever import NaiveRetriever
+        from backend.tools.diversity_planner import DiversityPlannerTool
+
+        retriever = NaiveRetriever(db)
+        planner = DiversityPlannerTool(db, project_id, retriever=retriever)
+
+        log_workflow_event(db, project_id, "sample_slots_planning_started", "Sample slots planning started.")
+        plan_result = planner.plan_slots(plan, source_report_json, total_samples)
+        slots = plan_result.get("slots", [])
+        summary = plan_result.get("summary", {})
+
+        log_agent_artifact(
+            db=db,
+            project_id=project_id,
+            artifact_type="sample_slots",
+            title="Planned Sample Slots",
+            summary=f"Planned {len(slots)} sample slots. Category counts: {summary.get('category_counts', {})}",
+            content_json=plan_result
+        )
+        log_workflow_event(db, project_id, "sample_slots_created", f"Successfully planned {len(slots)} sample slots.")
+
+        generator = BenchmarkGeneratorAgent(db, project_id)
+        evaluator = QualityEvaluatorAgent(db, project_id)
+
+        # Retrieve chunks
+        from backend.pipeline.retriever import NaiveRetriever
+        retriever = NaiveRetriever(db)
+        all_chunks = retriever.retrieve(project_id, " ".join(plan.categories), top_k=50)
+
+        # Wire up slot loop
+        from backend.tools.evidence_assembler import EvidenceAssemblerTool
+        from backend.tools.duplicate_checker import DuplicateCheckerTool
+
+        assembler = EvidenceAssemblerTool(db, project_id)
+        duplicate_checker = DuplicateCheckerTool(db, project_id)
+
+        samples = []
+        existing_questions = []
+        existing_chunk_combos = []
+
+        # Run generator and evaluator slot-by-slot
+        for idx, slot in enumerate(slots):
+            raise_if_cancelled(db, project_id, f"generation.slot_{idx}")
+
+            # 1. Evidence Assembly
+            evidence_pack = assembler.assemble(slot, all_chunks)
+
+            # 2. Sample Generation
+            with log_agent_run(db, project_id, "BenchmarkGeneratorAgent", f"Generating sample for slot {slot['slot_id']}") as agent_logger:
+                candidate_sample = generator.generate_one(slot, evidence_pack)
+                agent_logger.update(
+                    decision_summary=f"Generated candidate sample {candidate_sample.id} for slot {slot['slot_id']}.",
+                    output_json={"sample_id": candidate_sample.id}
+                )
+
+            # 3. Duplicate Checker & Regeneration
+            check_result = duplicate_checker.check(
+                candidate_question=candidate_sample.question,
+                candidate_source_chunk_ids=candidate_sample.source_chunk_ids,
+                candidate_category=candidate_sample.category,
+                existing_questions=existing_questions
             )
+
+            if check_result.duplicate_type == "exact" or check_result.duplicate_score >= 0.92:
+                log_workflow_event(
+                    db,
+                    project_id,
+                    "duplicate_detected",
+                    f"Exact/High duplicate detected for slot {slot['slot_id']}: '{candidate_sample.question[:50]}...'. Regenerating slot (max 1 retry)."
+                )
+
+                # Delete candidate from DB
+                db.delete(candidate_sample)
+                db.commit()
+
+                # Regenerate once
+                with log_agent_run(db, project_id, "BenchmarkGeneratorAgent", f"Regenerating slot {slot['slot_id']} due to duplicate") as agent_logger:
+                    candidate_sample = generator.generate_one(slot, evidence_pack)
+                    if settings.effective_mock_llm or not settings.QWEN_API_KEY:
+                        candidate_sample.question += " (Câu hỏi phụ)"
+                        db.commit()
+                    agent_logger.update(
+                        decision_summary=f"Regenerated sample {candidate_sample.id} for slot {slot['slot_id']}.",
+                        output_json={"sample_id": candidate_sample.id}
+                    )
+
+                # Re-check duplicate score
+                check_result = duplicate_checker.check(
+                    candidate_question=candidate_sample.question,
+                    candidate_source_chunk_ids=candidate_sample.source_chunk_ids,
+                    candidate_category=candidate_sample.category,
+                    existing_questions=existing_questions
+                )
+
+            # 4. Evaluation and Repair Cycle (up to 2 retries)
+            retry_count = 0
+            max_repairs = 2
+
+            while retry_count <= max_repairs:
+                raise_if_cancelled(db, project_id, f"evaluation.slot_{idx}.try_{retry_count}")
+
+                with log_agent_run(db, project_id, "QualityEvaluatorAgent", f"Evaluating sample for slot {slot['slot_id']} (Attempt {retry_count + 1})") as agent_logger:
+                    eval_result, needs_repair = evaluator.evaluate(
+                        candidate_sample,
+                        existing_questions=existing_questions,
+                        existing_chunk_combos=existing_chunk_combos
+                    )
+                    agent_logger.update(
+                        decision_summary=f"Evaluation result: {eval_result.decision}, overall score: {eval_result.overall_score:.2f}",
+                        output_json={
+                            "sample_id": candidate_sample.id,
+                            "decision": eval_result.decision,
+                            "overall_score": eval_result.overall_score,
+                            "novelty_score": eval_result.novelty_score,
+                            "issues": eval_result.issues
+                        },
+                        confidence_score=eval_result.overall_score
+                    )
+
+                if needs_repair and retry_count < max_repairs:
+                    retry_count += 1
+                    candidate_sample.retry_count = retry_count
+                    db.commit()
+
+                    log_workflow_event(db, project_id, "repair_started", f"Repairing sample {candidate_sample.id} (Retry {retry_count}) for slot {slot['slot_id']}: {eval_result.repair_instruction}")
+
+                    # Repair the sample
+                    with log_agent_run(db, project_id, "BenchmarkGeneratorAgent", f"Repairing sample {candidate_sample.id} (Retry {retry_count})") as repair_logger:
+                        generator.repair(candidate_sample, eval_result.repair_instruction, evidence_pack)
+                        repair_logger.update(
+                            decision_summary=f"Repaired sample {candidate_sample.id} successfully.",
+                            output_json={"sample_id": candidate_sample.id}
+                        )
+                else:
+                    break
+
+            # Save the final sample
+            existing_questions.append(candidate_sample.question)
+            existing_chunk_combos.append(tuple(sorted(candidate_sample.source_chunk_ids or [])))
+            samples.append(candidate_sample)
 
         # Log Generated Samples Snapshot Artifact
         cat_dist = {}
@@ -482,73 +623,13 @@ def _run_generation_workflow(project_id: str):
                 "sample_type_distribution": type_dist,
                 "sample_preview": preview,
                 "warnings": []
-            },
-            agent_run_id=agent_logger.run_id
+            }
         )
 
-
-        raise_if_cancelled(db, project_id, "evaluation.before")
+        raise_if_cancelled(db, project_id, "evaluation.after")
         project.workflow_state = "EVALUATING"
         db.commit()
-        log_workflow_event(db, project_id, "evaluation_started", f"Quality evaluation started for {len(samples)} samples.")
-
-        # Evaluate and trigger repair loop
-        for idx, sample in enumerate(samples):
-             raise_if_cancelled(db, project_id, "evaluation.sample")
-             
-             with log_agent_run(db, project_id, "QualityEvaluatorAgent", f"Evaluating sample {idx + 1}/{len(samples)} (ID: {sample.id})") as agent_logger:
-                 eval_result, needs_repair = evaluator.evaluate(sample)
-                 agent_logger.update(
-                     decision_summary=f"Evaluation result: {eval_result.decision}, overall score: {eval_result.overall_score}",
-                     output_json={
-                         "sample_id": sample.id,
-                         "decision": eval_result.decision,
-                         "overall_score": eval_result.overall_score,
-                         "issues": eval_result.issues
-                     },
-                     confidence_score=eval_result.overall_score
-                 )
-
-             if needs_repair:
-                 if sample.retry_count < settings.max_repair_retries_limit:
-                     raise_if_cancelled(db, project_id, "repair.before")
-                     sample.retry_count += 1
-                     db.commit()
-                     log_workflow_event(db, project_id, "repair_started", f"Repairing sample {sample.id} (Retry {sample.retry_count})")
-                     
-                     # Send back for repair
-                     with log_agent_run(db, project_id, "BenchmarkGeneratorAgent", f"Repairing sample {sample.id} (Retry {sample.retry_count})") as repair_logger:
-                         generator.generate(plan, 1, mode="repair", sample=sample)
-                         repair_logger.update(
-                             decision_summary=f"Repaired sample {sample.id} successfully.",
-                             output_json={"sample_id": sample.id}
-                         )
-                     
-                     # Re-evaluate
-                     raise_if_cancelled(db, project_id, "repair.evaluation")
-                     with log_agent_run(db, project_id, "QualityEvaluatorAgent", f"Evaluating repaired sample {sample.id} (Retry {sample.retry_count})") as re_eval_logger:
-                         eval_result, needs_repair = evaluator.evaluate(sample)
-                         re_eval_logger.update(
-                             decision_summary=f"Post-repair evaluation result: {eval_result.decision}, overall score: {eval_result.overall_score}",
-                             output_json={
-                                 "sample_id": sample.id,
-                                 "decision": eval_result.decision,
-                                 "overall_score": eval_result.overall_score,
-                                 "issues": eval_result.issues
-                             },
-                             confidence_score=eval_result.overall_score
-                         )
-                 else:
-                     # Log trace that repair was skipped
-                     trace = Trace(
-                         project_id=project_id,
-                         agent_name="System",
-                         action=f"Budget Guardrail: Skipped repair for sample {sample.id} because retry count ({sample.retry_count}) reached maximum limit of {settings.max_repair_retries_limit}.",
-                         details={"sample_id": sample.id, "retry_count": sample.retry_count, "limit": settings.max_repair_retries_limit}
-                     )
-                     db.add(trace)
-                     db.commit()
-                     log_workflow_event(db, project_id, "repair_skipped", f"Skipped repair for sample {sample.id} because retry count reached maximum limit.")
+        log_workflow_event(db, project_id, "evaluation_started", f"Quality evaluation completed for {len(samples)} samples.")
 
         # Log Quality Evaluation Report
         evals = db.query(Evaluation).join(Sample).filter(Sample.project_id == project_id).all()
