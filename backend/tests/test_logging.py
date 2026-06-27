@@ -141,7 +141,8 @@ def test_integration_workflow_logging():
         assert resp.status_code == 200
         runs = resp.json()
         agent_names = [r["agent_name"] for r in runs]
-        assert "SourceUnderstandingAgent" in agent_names
+        assert "SourceUnderstandingAgent (Phase 1)" in agent_names
+        assert "SourceUnderstandingAgent (Phase 2)" in agent_names
         assert "IntakePlannerAgent" in agent_names
 
         # Fetch combined trace

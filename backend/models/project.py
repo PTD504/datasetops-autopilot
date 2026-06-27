@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Enum, Boolean
+from sqlalchemy import Column, String, Text, DateTime, Enum, Boolean, JSON
 from sqlalchemy.orm import relationship
 import uuid
 import datetime
@@ -17,6 +17,7 @@ class Project(Base):
     cancel_reason = Column(Text, nullable=True)
     cancel_requested_at = Column(DateTime, nullable=True)
     last_error = Column(Text, nullable=True)
+    doc_understanding = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 

@@ -89,10 +89,15 @@ class QwenClient:
                     return self._get_mock_response(prompt)
 
         try:
+            # Ensure the word "json" (case-insensitive) is in either the system prompt or user prompt when response_format is used
+            adjusted_system_prompt = system_prompt
+            if "json" not in system_prompt.lower() and "json" not in prompt.lower():
+                adjusted_system_prompt = system_prompt + "\nOutput JSON format."
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": system_prompt},
+                    {"role": "system", "content": adjusted_system_prompt},
                     {"role": "user", "content": prompt}
                 ],
                 response_format={"type": "json_object"}

@@ -17,7 +17,7 @@ def health_qwen():
         client = QwenClient()
         try:
             # Minimal prompt just to test connectivity
-            result = client.generate_json("Say hello", '{"hello": "world"}')
+            result = client.generate_json("Say hello in JSON", 'You are a helpful assistant. Output JSON format.')
             test_success = True
         except Exception as e:
             logger.error(f"Health check Qwen real call failed: {e}")

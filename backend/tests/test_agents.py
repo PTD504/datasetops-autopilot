@@ -57,6 +57,25 @@ def test_agents():
     assert report2["coverage_by_category"]["shipping policy"]["coverage_level"] == "unsupported"
     assert report2["confidence_score"] > 0.0
 
+    # Test Phase 1: run_document_understanding
+    doc_under_res = source_agent.run_document_understanding(docs=[doc], chunks=[c1, c2])
+    assert doc_under_res["summary"] is not None
+    assert len(doc_under_res["report"]["document_summaries"]) == 1
+    assert "strong_sections" in doc_under_res["report"]
+
+    # Test Phase 2: run_coverage_audit
+    audit_res = source_agent.run_coverage_audit(
+        chunks=[c1, c2],
+        categories=["refund policy", "shipping policy"],
+        doc_understanding=doc_under_res
+    )
+    report_audit = audit_res["report"]
+    assert "refund policy" in report_audit["coverage_by_category"]
+    assert "shipping policy" in report_audit["coverage_by_category"]
+    assert report_audit["coverage_by_category"]["refund policy"]["coverage_level"] == "weak"
+    assert report_audit["coverage_by_category"]["shipping policy"]["coverage_level"] == "unsupported"
+    assert report_audit["confidence_score"] > 0.0
+
     # Test Intake Planner
     planner = IntakePlannerAgent(db, project_id)
     plan = planner.run("Make a test benchmark", summary, warnings)
