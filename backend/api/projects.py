@@ -20,6 +20,7 @@ from backend.agents.source_understanding import SourceUnderstandingAgent
 from backend.agents.generator import BenchmarkGeneratorAgent
 from backend.agents.evaluator import QualityEvaluatorAgent
 from backend.agents.exporter import ExportReportAgent
+from backend.agents.negotiation import negotiate
 from backend.services.workflow_logger import log_workflow_event, log_agent_run, log_tool_call, log_agent_artifact
 
 from backend.services.cancellation import (
@@ -222,25 +223,30 @@ def _run_initial_workflow(project_id: str):
         db.commit()
         log_workflow_event(db, project_id, "chunking_completed", f"Document chunking step completed. Total chunks: {total_chunks}")
 
-        # 2. Source Analyzing
+        # 2. Embedding
+        import asyncio
+        from backend.pipeline.embedder import embed_chunks
+
+        raise_if_cancelled(db, project_id, "embedding.before")
+        project.workflow_state = "EMBEDDING"
+        db.commit()
+        log_workflow_event(db, project_id, "embedding_started", "Chunk embedding step started.")
+        asyncio.run(embed_chunks(project_id, db))
+
+        # 3. Source Analyzing (Phase 1)
         raise_if_cancelled(db, project_id, "source_understanding.before")
         project.workflow_state = "SOURCE_ANALYZING"
         db.commit()
         log_workflow_event(db, project_id, "source_analysis_started", "Source document analysis agent run started.")
 
-        with log_agent_run(db, project_id, "SourceUnderstandingAgent", f"Analyzing {len(docs)} documents") as agent_logger:
-            # Query existing plan categories if available
-            from backend.models import BenchmarkPlan, Chunk
-            plan = db.query(BenchmarkPlan).filter(BenchmarkPlan.project_id == project_id).first()
-            plan_categories = plan.categories if plan else None
+        with log_agent_run(db, project_id, "SourceUnderstandingAgent (Phase 1)", f"Analyzing {len(docs)} documents") as agent_logger:
+            from backend.models import Chunk
             project_chunks = db.query(Chunk).filter(Chunk.project_id == project_id).all()
 
             source_agent = SourceUnderstandingAgent(db, project_id)
-            result = source_agent.run(
+            result = source_agent.run_document_understanding(
                 docs=docs,
-                chunks=project_chunks,
-                benchmark_request=project.benchmark_request,
-                plan_categories=plan_categories
+                chunks=project_chunks
             )
             summary = result["summary"]
             warnings = result["warnings"]
@@ -251,22 +257,14 @@ def _run_initial_workflow(project_id: str):
                 output_json={
                     "summary": summary,
                     "warnings": warnings,
-                    "recommended_adjustments_to_plan": report.get("recommended_adjustments_to_plan", []),
                     "report": report
                 },
                 warnings=warnings
             )
 
-        # Log Source Understanding Report Artifact
-        log_agent_artifact(
-            db=db,
-            project_id=project_id,
-            artifact_type="source_understanding_report",
-            title="Source Understanding Report",
-            summary=summary,
-            content_json=report,
-            agent_run_id=agent_logger.run_id
-        )
+        # Persist intermediate document understanding to DB
+        project.doc_understanding = report
+        db.commit()
 
         project.workflow_state = "SOURCE_ANALYZED"
         db.commit()
@@ -280,7 +278,7 @@ def _run_initial_workflow(project_id: str):
 
         with log_agent_run(db, project_id, "IntakePlannerAgent", f"Generating benchmark plan for request: {project.benchmark_request[:200]}...") as agent_logger:
             planner_agent = IntakePlannerAgent(db, project_id)
-            plan = planner_agent.run(project.benchmark_request, summary, warnings)
+            plan = planner_agent.run(project.benchmark_request, summary, warnings, source_report=report)
             agent_logger.update(
                 decision_summary=f"Goal: {plan.goal[:100]}..., Total samples planned: {plan.sample_count.get('total') if isinstance(plan.sample_count, dict) else plan.sample_count}",
                 output_json={
@@ -311,6 +309,44 @@ def _run_initial_workflow(project_id: str):
             },
             agent_run_id=agent_logger.run_id
         )
+
+        # 4. Source Coverage Audit (Phase 2)
+        log_workflow_event(db, project_id, "source_coverage_audit_started", "Source coverage audit step started.")
+        with log_agent_run(db, project_id, "SourceUnderstandingAgent (Phase 2)", "Coverage Audit") as audit_logger:
+            audit_result = source_agent.run_coverage_audit(
+                chunks=project_chunks,
+                categories=plan.categories or [],
+                doc_understanding=report,
+                db=db,
+                project_id=project_id
+            )
+            final_summary = audit_result["summary"]
+            final_warnings = audit_result["warnings"]
+            final_report = audit_result["report"]
+
+            audit_logger.update(
+                decision_summary=final_summary,
+                output_json={
+                    "summary": final_summary,
+                    "warnings": final_warnings,
+                    "recommended_adjustments_to_plan": final_report.get("recommended_adjustments_to_plan", []),
+                    "report": final_report
+                },
+                warnings=final_warnings
+            )
+
+        # Log Source Understanding Report Artifact (combined document analysis and coverage)
+        log_agent_artifact(
+            db=db,
+            project_id=project_id,
+            artifact_type="source_understanding_report",
+            title="Source Understanding Report",
+            summary=final_summary,
+            content_json=final_report,
+            agent_run_id=audit_logger.run_id
+        )
+
+        log_workflow_event(db, project_id, "source_coverage_audit_completed", f"Source coverage audit complete. Summary: {final_summary}")
 
 
         # Enforce budget/quota guardrails on plan creation (e.g. cap sample count or warn early)
@@ -449,7 +485,10 @@ def _run_generation_workflow(project_id: str):
         if plan.sample_count and isinstance(plan.sample_count, dict):
             total_samples = plan.sample_count.get("total", 10)
 
-        # Run diversity planning
+        # Run diversity planning.
+        # Wrapped in a BenchmarkGeneratorAgent run context so DiversityPlannerTool's
+        # ToolCallLog has a non-null agent_run_id. This is the lightest change that
+        # satisfies the requirement without moving the planner call or adding a new agent.
         from backend.pipeline.retriever import NaiveRetriever
         from backend.tools.diversity_planner import DiversityPlannerTool
 
@@ -457,9 +496,14 @@ def _run_generation_workflow(project_id: str):
         planner = DiversityPlannerTool(db, project_id, retriever=retriever)
 
         log_workflow_event(db, project_id, "sample_slots_planning_started", "Sample slots planning started.")
-        plan_result = planner.plan_slots(plan, source_report_json, total_samples)
-        slots = plan_result.get("slots", [])
-        summary = plan_result.get("summary", {})
+        with log_agent_run(db, project_id, "BenchmarkGeneratorAgent", "Planning sample slots") as slots_logger:
+            plan_result = planner.plan_slots(plan, source_report_json, total_samples)
+            slots = plan_result.get("slots", [])
+            summary = plan_result.get("summary", {})
+            slots_logger.update(
+                decision_summary=f"Planned {len(slots)} sample slots.",
+                output_json={"total_slots": len(slots), "category_counts": summary.get("category_counts", {})}
+            )
 
         log_agent_artifact(
             db=db,
@@ -481,10 +525,8 @@ def _run_generation_workflow(project_id: str):
 
         # Wire up slot loop
         from backend.tools.evidence_assembler import EvidenceAssemblerTool
-        from backend.tools.duplicate_checker import DuplicateCheckerTool
 
         assembler = EvidenceAssemblerTool(db, project_id)
-        duplicate_checker = DuplicateCheckerTool(db, project_id)
 
         samples = []
         existing_questions = []
@@ -505,86 +547,32 @@ def _run_generation_workflow(project_id: str):
                     output_json={"sample_id": candidate_sample.id}
                 )
 
-            # 3. Duplicate Checker & Regeneration
-            check_result = duplicate_checker.check(
-                candidate_question=candidate_sample.question,
-                candidate_source_chunk_ids=candidate_sample.source_chunk_ids,
-                candidate_category=candidate_sample.category,
-                existing_questions=existing_questions
+            # Note: duplicate detection is handled inside QualityEvaluatorAgent.evaluate().
+            # The evaluator's internal DuplicateCheckerTool call runs within its agent_run
+            # context, so ToolCallLog records have a non-null agent_run_id.
+
+            # 4. Generator-Critic Negotiation (replaces hardcoded repair while-loop).
+            # negotiate() runs up to max_turns critic->generator rounds, logs every
+            # turn as a WorkflowEvent(event_type="negotiation_turn"), and routes the
+            # sample to HUMAN_REVIEW if all turns are exhausted without a pass.
+            import asyncio
+            from backend.core.config import settings
+
+            raise_if_cancelled(db, project_id, f"negotiation.slot_{idx}.start")
+
+            max_turns = settings.QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE
+            asyncio.run(
+                negotiate(
+                    slot=slot,
+                    sample=candidate_sample,
+                    evidence_pack=evidence_pack,
+                    generator=generator,
+                    evaluator=evaluator,
+                    db=db,
+                    project_id=project_id,
+                    max_turns=max_turns,
+                )
             )
-
-            if check_result.duplicate_type == "exact" or check_result.duplicate_score >= 0.92:
-                log_workflow_event(
-                    db,
-                    project_id,
-                    "duplicate_detected",
-                    f"Exact/High duplicate detected for slot {slot['slot_id']}: '{candidate_sample.question[:50]}...'. Regenerating slot (max 1 retry)."
-                )
-
-                # Delete candidate from DB
-                db.delete(candidate_sample)
-                db.commit()
-
-                # Regenerate once
-                with log_agent_run(db, project_id, "BenchmarkGeneratorAgent", f"Regenerating slot {slot['slot_id']} due to duplicate") as agent_logger:
-                    candidate_sample = generator.generate_one(slot, evidence_pack)
-                    if settings.effective_mock_llm or not settings.QWEN_API_KEY:
-                        candidate_sample.question += " (Câu hỏi phụ)"
-                        db.commit()
-                    agent_logger.update(
-                        decision_summary=f"Regenerated sample {candidate_sample.id} for slot {slot['slot_id']}.",
-                        output_json={"sample_id": candidate_sample.id}
-                    )
-
-                # Re-check duplicate score
-                check_result = duplicate_checker.check(
-                    candidate_question=candidate_sample.question,
-                    candidate_source_chunk_ids=candidate_sample.source_chunk_ids,
-                    candidate_category=candidate_sample.category,
-                    existing_questions=existing_questions
-                )
-
-            # 4. Evaluation and Repair Cycle (up to 2 retries)
-            retry_count = 0
-            max_repairs = 2
-
-            while retry_count <= max_repairs:
-                raise_if_cancelled(db, project_id, f"evaluation.slot_{idx}.try_{retry_count}")
-
-                with log_agent_run(db, project_id, "QualityEvaluatorAgent", f"Evaluating sample for slot {slot['slot_id']} (Attempt {retry_count + 1})") as agent_logger:
-                    eval_result, needs_repair = evaluator.evaluate(
-                        candidate_sample,
-                        existing_questions=existing_questions,
-                        existing_chunk_combos=existing_chunk_combos
-                    )
-                    agent_logger.update(
-                        decision_summary=f"Evaluation result: {eval_result.decision}, overall score: {eval_result.overall_score:.2f}",
-                        output_json={
-                            "sample_id": candidate_sample.id,
-                            "decision": eval_result.decision,
-                            "overall_score": eval_result.overall_score,
-                            "novelty_score": eval_result.novelty_score,
-                            "issues": eval_result.issues
-                        },
-                        confidence_score=eval_result.overall_score
-                    )
-
-                if needs_repair and retry_count < max_repairs:
-                    retry_count += 1
-                    candidate_sample.retry_count = retry_count
-                    db.commit()
-
-                    log_workflow_event(db, project_id, "repair_started", f"Repairing sample {candidate_sample.id} (Retry {retry_count}) for slot {slot['slot_id']}: {eval_result.repair_instruction}")
-
-                    # Repair the sample
-                    with log_agent_run(db, project_id, "BenchmarkGeneratorAgent", f"Repairing sample {candidate_sample.id} (Retry {retry_count})") as repair_logger:
-                        generator.repair(candidate_sample, eval_result.repair_instruction, evidence_pack)
-                        repair_logger.update(
-                            decision_summary=f"Repaired sample {candidate_sample.id} successfully.",
-                            output_json={"sample_id": candidate_sample.id}
-                        )
-                else:
-                    break
 
             # Save the final sample
             existing_questions.append(candidate_sample.question)
@@ -1225,6 +1213,58 @@ def update_plan(project_id: str, plan_update: PlanUpdate, db: Session = Depends(
     warnings = [w for w in warnings if "guardrail" not in w.lower() and "capped" not in w.lower() and "exceed" not in w.lower()]
     plan.source_warnings = warnings
     db.commit()
+
+    # Re-run Source Coverage Audit (Phase 2)
+    from backend.models import Document, Chunk
+    from backend.agents.source_understanding import SourceUnderstandingAgent
+    docs = db.query(Document).filter(Document.project_id == project_id).all()
+    project_chunks = db.query(Chunk).filter(Chunk.project_id == project_id).all()
+    source_agent = SourceUnderstandingAgent(db, project_id)
+
+    doc_under = project.doc_understanding
+    if not doc_under:
+        with log_agent_run(db, project_id, "SourceUnderstandingAgent (Phase 1)", f"Analyzing {len(docs)} documents") as agent_logger:
+            result = source_agent.run_document_understanding(docs=docs, chunks=project_chunks)
+            doc_under = result["report"]
+            agent_logger.update(
+                decision_summary=result["summary"],
+                output_json={"summary": result["summary"], "warnings": result["warnings"], "report": doc_under},
+                warnings=result["warnings"]
+            )
+        project.doc_understanding = doc_under
+        db.commit()
+
+    with log_agent_run(db, project_id, "SourceUnderstandingAgent (Phase 2)", "Coverage Audit") as audit_logger:
+        audit_result = source_agent.run_coverage_audit(
+            chunks=project_chunks,
+            categories=plan_update.categories or [],
+            doc_understanding=doc_under
+        )
+        final_summary = audit_result["summary"]
+        final_warnings = audit_result["warnings"]
+        final_report = audit_result["report"]
+
+        audit_logger.update(
+            decision_summary=final_summary,
+            output_json={
+                "summary": final_summary,
+                "warnings": final_warnings,
+                "recommended_adjustments_to_plan": final_report.get("recommended_adjustments_to_plan", []),
+                "report": final_report
+            },
+            warnings=final_warnings
+        )
+
+    # Log Source Understanding Report Artifact (combined document analysis and coverage)
+    log_agent_artifact(
+        db=db,
+        project_id=project_id,
+        artifact_type="source_understanding_report",
+        title="Source Understanding Report",
+        summary=final_summary,
+        content_json=final_report,
+        agent_run_id=audit_logger.run_id
+    )
 
     enforce_quota_guardrails(db, project_id, raise_on_strict=True)
 

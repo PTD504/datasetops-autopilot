@@ -2,28 +2,21 @@ from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from .base import BaseAgent
 from backend.models import BenchmarkPlan, Sample
-from backend.pipeline.retriever import NaiveRetriever
+from backend.pipeline.retriever import NaiveRetriever, SemanticRetriever
 from backend.models.enums import SampleStatus
-
-from typing import Dict, Any, List
-from sqlalchemy.orm import Session
-from .base import BaseAgent
-from backend.models import BenchmarkPlan, Sample
-from backend.pipeline.retriever import NaiveRetriever
-from backend.models.enums import SampleStatus
+from backend.tools.evidence_assembler import EvidenceAssemblerTool
 
 class BenchmarkGeneratorAgent(BaseAgent):
     def __init__(self, db: Session, project_id: str):
         super().__init__(db, project_id)
         self.purpose = "Generate benchmark samples based on the plan and source documents."
-        self.retriever = NaiveRetriever(db)
+        self.retriever = SemanticRetriever(db)
         self._samples = []
 
     def generate(self, plan: BenchmarkPlan, count: int, mode: str = "generation", sample: Sample = None, sample_slots: List[Dict[str, Any]] = None) -> List[Sample]:
         self._log_trace(f"start_generation_{mode}", {"count": count})
 
         if mode == "repair" and sample:
-            from backend.tools.evidence_assembler import EvidenceAssemblerTool
             assembler = EvidenceAssemblerTool(self.db, self.project_id)
             all_chunks = self.retriever.retrieve(self.project_id, sample.category, top_k=5)
             slot = {
@@ -54,9 +47,7 @@ class BenchmarkGeneratorAgent(BaseAgent):
             plan_result = planner.plan_slots(plan, source_report_json, count)
             slots = plan_result.get("slots", [])
 
-        from backend.tools.evidence_assembler import EvidenceAssemblerTool
-        from backend.pipeline.retriever import NaiveRetriever
-        retriever = NaiveRetriever(self.db)
+        retriever = SemanticRetriever(self.db)
         all_chunks = retriever.retrieve(self.project_id, " ".join(plan.categories), top_k=50)
         assembler = EvidenceAssemblerTool(self.db, self.project_id)
 
