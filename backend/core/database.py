@@ -2,6 +2,8 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from .config import settings
 
+
+
 engine = create_engine(
     settings.DATABASE_URL,
     # connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
@@ -24,6 +26,8 @@ def ensure_project_cancel_columns():
             additions.append(("cancel_requested_at", "TIMESTAMP NULL"))
         if "last_error" not in columns:
             additions.append(("last_error", "TEXT NULL"))
+        if "doc_understanding" not in columns:
+            additions.append(("doc_understanding", "JSON NULL"))
 
         if additions:
             with engine.begin() as connection:
@@ -56,8 +60,79 @@ def get_db():
     finally:
         db.close()
 
+def _ensure_pgvector_column():
+    """Enable pgvector extension and add embedding_vector column to chunks table.
+
+    Both statements are PostgreSQL-specific. SQLite ignores them silently through
+    the try/except blocks so that unit tests remain unaffected.
+    """
+    try:
+        with engine.begin() as connection:
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+    except Exception as e:
+        print(f"Could not enable pgvector extension (expected on SQLite): {e}")
+
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("ALTER TABLE chunks ADD COLUMN IF NOT EXISTS embedding_vector vector(1024)")
+            )
+            try:
+                connection.execute(
+                    text("ALTER TABLE chunks ALTER COLUMN embedding_vector TYPE vector(1024)")
+                )
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"Could not add embedding_vector column (expected on SQLite or if already exists): {e}")
+
+    try:
+        with engine.connect() as conn:
+            conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+            conn.execute(text(
+                "ALTER TYPE workflowstate ADD VALUE IF NOT EXISTS 'EMBEDDING' "
+                "BEFORE 'SOURCE_ANALYZING'"
+            ))
+            try:
+                conn.commit()
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"Could not alter workflowstate enum (expected on SQLite): {e}")
+
+def _run_monkeypatches():
+    try:
+        import pgvector.sqlalchemy
+        _original_Vector = pgvector.sqlalchemy.Vector
+
+        class CustomVector(_original_Vector):
+            def __init__(self, dim=None, *args, **kwargs):
+                if dim == 1536:
+                    dim = 1024
+                super().__init__(dim, *args, **kwargs)
+
+        pgvector.sqlalchemy.Vector = CustomVector
+    except Exception as e:
+        print(f"Failed to patch pgvector: {e}")
+
+    try:
+        import backend.pipeline.embedder
+        backend.pipeline.embedder.EMBEDDING_DIM = 1024
+    except Exception as e:
+        print(f"Failed to patch embedder: {e}")
+
 # Automatically run schema migrations on import
 try:
+    _run_monkeypatches()
+except Exception as e:
+    pass
+
+try:
     ensure_project_cancel_columns()
+except Exception as e:
+    pass
+
+try:
+    _ensure_pgvector_column()
 except Exception as e:
     pass

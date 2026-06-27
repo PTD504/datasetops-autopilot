@@ -4,6 +4,13 @@ import uuid
 import datetime
 from backend.core.database import Base
 
+try:
+    from pgvector.sqlalchemy import Vector
+    _VECTOR_TYPE = Vector(1536)
+except ImportError:
+    from sqlalchemy import PickleType
+    _VECTOR_TYPE = PickleType()
+
 class Document(Base):
     __tablename__ = "documents"
 
@@ -26,5 +33,6 @@ class Chunk(Base):
     project_id = Column(String, ForeignKey("projects.id"))
     text = Column(Text, nullable=False)
     index = Column(Integer, nullable=False)
+    embedding_vector = Column(_VECTOR_TYPE, nullable=True)
 
     document = relationship("Document", back_populates="chunks")
