@@ -145,11 +145,42 @@ class ExportReportAgent(BaseAgent):
             f.write("\n")
 
             f.write(f"## Common Issues\n")
-            f.write(f"- Minor grounding issues requiring repair.\n")
-            f.write(f"- Multi-hop questions needing additional context.\n")
-            f.write(f"- Some edge case questions marked for human review.\n\n")
+            # Aggregate real issues from evaluation results.
+            all_issues = []
+            for e in evals:
+                if e.issues and isinstance(e.issues, list):
+                    all_issues.extend(e.issues)
+            # Deduplicate while preserving insertion order, then take top 5.
+            seen = set()
+            unique_issues = []
+            for issue in all_issues:
+                normalized = str(issue).strip()
+                if normalized and normalized not in seen:
+                    seen.add(normalized)
+                    unique_issues.append(normalized)
+                if len(unique_issues) >= 5:
+                    break
+            if unique_issues:
+                for issue in unique_issues:
+                    f.write(f"- {issue}\n")
+            else:
+                f.write(f"- No issues recorded.\n")
+            f.write("\n")
+
             f.write(f"## Recommendations\n")
-            f.write(f"- Periodically review human-flagged samples to improve generation prompts.\n")
+            # Build concrete recommendations from decision counts already computed above.
+            decision_counts = {}
+            for e in evals:
+                d = (e.decision or "unknown").strip()
+                decision_counts[d] = decision_counts.get(d, 0) + 1
+            if decision_counts.get("human_review", 0) > 0:
+                f.write(f"- Review the {decision_counts['human_review']} sample(s) flagged for human review to improve generation prompts.\n")
+            if decision_counts.get("repair", 0) > 0:
+                f.write(f"- Investigate the {decision_counts['repair']} sample(s) that required repair for recurring grounding weaknesses.\n")
+            if decision_counts.get("reject", 0) > 0:
+                f.write(f"- Examine the {decision_counts['reject']} rejected sample(s) and consider adjusting source document coverage or quality rules.\n")
+            if not decision_counts or all(k == "pass" for k in decision_counts):
+                f.write(f"- All samples passed evaluation. No corrective action required.\n")
 
         # 4. export.zip
         zip_path = os.path.join(export_dir, "export.zip")

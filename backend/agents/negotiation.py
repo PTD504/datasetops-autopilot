@@ -97,13 +97,15 @@ def _fetch_new_chunks_for_grounding(
     top_k: int = 3,
 ) -> List[str]:
     """
-    Uses NaiveRetriever to find fresh chunks relevant to the repair query.
-    The retriever already logs a ToolCallLog entry for NaiveRetriever.retrieve.
+    Uses SemanticRetriever to find fresh chunks relevant to the repair query.
+    Falls back to NaiveRetriever keyword scoring in mock mode or when pgvector
+    is unavailable — SemanticRetriever handles this internally.
+    The retriever already logs a ToolCallLog entry for the retrieve call.
     Returns a list of chunk IDs.
     """
-    from backend.pipeline.retriever import NaiveRetriever
+    from backend.pipeline.retriever import SemanticRetriever
 
-    retriever = NaiveRetriever(db)
+    retriever = SemanticRetriever(db)
     chunks = retriever.retrieve(project_id, query, top_k=top_k)
     return [c["id"] for c in chunks]
 
