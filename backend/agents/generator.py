@@ -48,7 +48,7 @@ class BenchmarkGeneratorAgent(BaseAgent):
             slots = plan_result.get("slots", [])
 
         retriever = SemanticRetriever(self.db)
-        all_chunks = retriever.retrieve(self.project_id, " ".join(plan.categories), top_k=50)
+        all_chunks = retriever.retrieve(self.project_id, " ".join(plan.categories), top_k=15)
         assembler = EvidenceAssemblerTool(self.db, self.project_id)
 
         generated_samples = []
@@ -71,6 +71,8 @@ class BenchmarkGeneratorAgent(BaseAgent):
         for chunk in evidence_pack.supporting_chunks:
             context_parts.append(f"[Supporting Context - ID: {chunk['id']}] {chunk['text']}")
         context_str = "\n".join(context_parts)
+        if len(context_str) > 12000:
+            context_str = context_str[:12000] + "...[context truncated]"
 
         # Build prompt
         prompt = f"""
@@ -140,6 +142,8 @@ class BenchmarkGeneratorAgent(BaseAgent):
         for chunk in evidence_pack.supporting_chunks:
             context_parts.append(f"[Supporting Context - ID: {chunk['id']}] {chunk['text']}")
         context_str = "\n".join(context_parts)
+        if len(context_str) > 12000:
+            context_str = context_str[:12000] + "...[context truncated]"
 
         prompt = f"""
         Repair the following RAG sample.

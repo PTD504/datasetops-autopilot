@@ -74,12 +74,18 @@ class LLMBudgetGuard:
     def record_usage(self, agent_name: str, model: str, input_tokens: int, output_tokens: int, status: str = "success", error_message: str = None):
         total_tokens = input_tokens + output_tokens
 
-        # Rough cost estimation (Qwen-plus approx $0.0005 per 1k input, $0.0015 per 1k output)
+        # Rough cost estimation
         cost_usd = 0.0
-        if "qwen-plus" in model:
-            cost_usd = (input_tokens / 1000.0 * 0.0005) + (output_tokens / 1000.0 * 0.0015)
-        elif "qwen-turbo" in model:
+        model_lower = model.lower()
+        if "flash" in model_lower or "turbo" in model_lower or "mt-turbo" in model_lower:
             cost_usd = (input_tokens / 1000.0 * 0.0002) + (output_tokens / 1000.0 * 0.0006)
+        elif "plus" in model_lower:
+            cost_usd = (input_tokens / 1000.0 * 0.0005) + (output_tokens / 1000.0 * 0.0015)
+        elif "max" in model_lower:
+            cost_usd = (input_tokens / 1000.0 * 0.0020) + (output_tokens / 1000.0 * 0.0060)
+        else:
+            cost_usd = (input_tokens / 1000.0 * 0.0005) + (output_tokens / 1000.0 * 0.0015)
+            logger.warning(f"Unknown model pricing: {model}, using plus-tier estimate")
 
         record = LLMUsageRecord(
             project_id=self.project_id,
