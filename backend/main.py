@@ -13,11 +13,20 @@ ensure_project_cancel_columns()
 
 load_dotenv()
 
+# Parse allowed origins from environment variable
+cors_origins_raw = os.getenv("CORS_ORIGINS", "")
+cors_origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
+
+# Always ensure http://localhost:3000 and http://localhost:8000 are in the list
+for fallback in ["http://localhost:3000", "http://localhost:8000"]:
+    if fallback not in cors_origins:
+        cors_origins.append(fallback)
+
 app = FastAPI(title="DatasetOps Autopilot API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # allowing all for hackathon simplicity
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

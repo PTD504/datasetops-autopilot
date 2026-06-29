@@ -1,1 +1,0 @@
-Build a Vietnamese RAG benchmark to evaluate whether a customer support chatbot can answer refund, shipping, warranty, cancellation, and payment questions. Generate 30 samples with easy, medium, and hard difficulty.
