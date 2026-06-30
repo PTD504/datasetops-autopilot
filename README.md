@@ -92,6 +92,8 @@ datasetops-autopilot/
 │   ├── pipeline/        # Chunker, parser, and retriever components
 │   ├── services/        # Quotas, logs, and cancellation management
 │   ├── tests/           # Integration and unit tests
+│   ├── tools/           # Custom helper tools (diversity planner, duplicate checker, evidence assembler)
+│   ├── workflows/       # Pipeline background workflows (generation loop, initial setup, export, etc.)
 │   ├── wrappers/        # DashScope Qwen client and Alibaba OSS client
 │   └── main.py          # FastAPI entry point
 ├── deploy/
