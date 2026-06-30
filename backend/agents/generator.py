@@ -14,6 +14,18 @@ class BenchmarkGeneratorAgent(BaseAgent):
         self._samples = []
 
     def generate(self, plan: BenchmarkPlan, count: int, mode: str = "generation", sample: Sample = None, sample_slots: List[Dict[str, Any]] = None) -> List[Sample]:
+        """Generate benchmark samples using a self-contained retrieval + assembly path.
+
+        NOTE: This method is the direct-call path used in tests and standalone
+        invocations (e.g., test_generator_evaluator.py::test_pipeline). It is NOT
+        called by run_generation_workflow() in workflows/generation.py.
+
+        The workflow manages its own per-slot SemanticRetriever retrieval and
+        EvidenceAssemblerTool calls directly so that it can interleave
+        cancellation checks (raise_if_cancelled) and per-slot log_agent_run
+        wrappers without restructuring the agent interface. Both paths use
+        SemanticRetriever, so retrieval quality is consistent.
+        """
         self._log_trace(f"start_generation_{mode}", {"count": count})
 
         if mode == "repair" and sample:

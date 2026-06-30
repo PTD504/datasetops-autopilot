@@ -43,6 +43,17 @@ class QualityEvaluatorAgent(BaseAgent):
              context_texts = [c.text for c in chunks]
         context = "\n".join(context_texts)
 
+        # Build existing-questions context for novelty scoring.
+        # The real LLM needs concrete questions to compare against; without this,
+        # novelty_score would be an unconstrained judgment with no grounding.
+        # Cap at 10 questions, truncate each to 80 chars to keep prompt size bounded.
+        existing_qs = existing_samples[:10]
+        if existing_qs:
+            existing_questions_lines = [f"- {s.question[:80]}" for s in existing_qs]
+            existing_questions_block = "\n".join(existing_questions_lines)
+        else:
+            existing_questions_block = "(none - this is the first sample)"
+
         prompt = f"""
         Evaluate this RAG sample. Do not reward answers that use knowledge outside the provided evidence.
         Question: {sample.question}
@@ -52,6 +63,9 @@ class QualityEvaluatorAgent(BaseAgent):
         Difficulty: {sample.difficulty}
         Sample Type: {sample.sample_type}
         Retry Count: {sample.retry_count}
+
+        Existing Sample Questions (for novelty comparison, up to 10 shown):
+        {existing_questions_block}
 
         Output JSON with:
         faithfulness_score (0-1): whether the expected answer is supported by the evidence chunks.
@@ -66,6 +80,7 @@ class QualityEvaluatorAgent(BaseAgent):
         grounding_score (0-1): backward compatible grounding score.
         language_score (0-1): backward compatible language score.
         difficulty_score (0-1): backward compatible difficulty score.
+        novelty_score (0-1): how semantically novel the question above is compared to the existing sample questions listed. Score 1.0 if the question covers a completely different scenario or information need. Score 0.0 if the question is essentially the same as one of the listed existing questions.
         decision ('pass', 'repair', 'human_review', 'reject'),
         issues (list): list of issues found.
         evaluator_notes (str): internal reasoning.
@@ -78,8 +93,6 @@ class QualityEvaluatorAgent(BaseAgent):
             pass
         else:
             novelty_score = response.get("novelty_score", 1.0)
-            if self.llm.use_mock and novelty_score == 1.0:
-                novelty_score = 0.92
 
         # Determine actual decision based on thresholds
         original_overall = response.get("overall_score", 0.0)

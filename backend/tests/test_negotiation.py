@@ -9,7 +9,6 @@ Covers:
   (e) Evaluator suggesting chunk IDs causes NegotiationChunkFetcher ToolCallLog entry
 """
 
-import asyncio
 import uuid
 from unittest.mock import MagicMock, patch
 
@@ -159,8 +158,7 @@ def test_negotiate_passes_on_turn_1():
         with patch("backend.agents.negotiation.settings") as mock_settings:
             mock_settings.effective_mock_llm = False
 
-            result = asyncio.run(
-                negotiate(
+            result = negotiate(
                     slot=slot,
                     sample=sample,
                     evidence_pack=_mock_evidence_pack(),
@@ -170,7 +168,6 @@ def test_negotiate_passes_on_turn_1():
                     project_id=project_id,
                     max_turns=2,
                 )
-            )
 
         # Generator repair should never be called
         generator.repair.assert_not_called()
@@ -219,8 +216,7 @@ def test_negotiate_passes_on_turn_2():
              patch("backend.agents.negotiation._fetch_new_chunks_for_grounding", return_value=[]):
             mock_settings.effective_mock_llm = False
 
-            result = asyncio.run(
-                negotiate(
+            result = negotiate(
                     slot=slot,
                     sample=sample,
                     evidence_pack=_mock_evidence_pack(),
@@ -230,7 +226,6 @@ def test_negotiate_passes_on_turn_2():
                     project_id=project_id,
                     max_turns=2,
                 )
-            )
 
         # Repair called exactly once (turn 1 failure)
         assert generator.repair.call_count == 1
@@ -279,8 +274,7 @@ def test_negotiate_exhausts_turns_routes_to_human_review():
              patch("backend.agents.negotiation._fetch_new_chunks_for_grounding", return_value=[]):
             mock_settings.effective_mock_llm = False
 
-            asyncio.run(
-                negotiate(
+            negotiate(
                     slot=slot,
                     sample=sample,
                     evidence_pack=_mock_evidence_pack(),
@@ -290,7 +284,6 @@ def test_negotiate_exhausts_turns_routes_to_human_review():
                     project_id=project_id,
                     max_turns=2,
                 )
-            )
 
         db.refresh(sample)
         assert sample.status == SampleStatus.HUMAN_REVIEW
@@ -332,17 +325,15 @@ def test_negotiate_mock_mode_deterministic():
 
         # settings fixture sets RUN_MODE=mock so effective_mock_llm is True
         # No patch needed — conftest.py already sets this for all tests.
-        result = asyncio.run(
-            negotiate(
-                slot=slot,
-                sample=sample,
-                evidence_pack=_mock_evidence_pack(),
-                generator=generator,
-                evaluator=evaluator,
-                db=db,
-                project_id=project_id,
-                max_turns=2,
-            )
+        result = negotiate(
+            slot=slot,
+            sample=sample,
+            evidence_pack=_mock_evidence_pack(),
+            generator=generator,
+            evaluator=evaluator,
+            db=db,
+            project_id=project_id,
+            max_turns=2,
         )
 
         # Real agents must NOT be called
@@ -409,8 +400,7 @@ def test_negotiate_chunk_fetch_on_suggested_ids():
         with patch("backend.agents.negotiation.settings") as mock_settings:
             mock_settings.effective_mock_llm = False
 
-            asyncio.run(
-                negotiate(
+            negotiate(
                     slot=slot,
                     sample=sample,
                     evidence_pack=_mock_evidence_pack(),
@@ -420,7 +410,6 @@ def test_negotiate_chunk_fetch_on_suggested_ids():
                     project_id=project_id,
                     max_turns=2,
                 )
-            )
 
         # Verify NegotiationChunkFetcher ToolCallLog entry exists
         chunk_fetcher_logs = db.query(ToolCallLog).filter(

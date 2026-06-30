@@ -8,7 +8,6 @@ and QualityEvaluatorAgent (critic), up to a configurable turn limit.
 Each turn is logged as a WorkflowEvent with event_type="negotiation_turn".
 """
 
-import asyncio
 import enum
 import logging
 import time
@@ -237,7 +236,7 @@ def _fetch_suggested_chunks_as_evidence_pack(
 # Mock negotiation path
 # ---------------------------------------------------------------------------
 
-async def _negotiate_mock(
+def _negotiate_mock(
     slot: dict,
     sample: Sample,
     db: Session,
@@ -310,7 +309,7 @@ async def _negotiate_mock(
 # Main negotiate() coroutine
 # ---------------------------------------------------------------------------
 
-async def negotiate(
+def negotiate(
     slot: dict,
     sample: Sample,
     evidence_pack: Any,
@@ -321,7 +320,7 @@ async def negotiate(
     max_turns: int = 2,
 ) -> Any:
     """
-    Async Generator-Critic negotiation loop.
+    Generator-Critic negotiation loop.
 
     Flow per turn:
       1. Evaluator evaluates the current sample.
@@ -354,15 +353,13 @@ async def negotiate(
     """
     # Mock path: fast, deterministic, no real LLM
     if settings.effective_mock_llm:
-        return await _negotiate_mock(slot, sample, db, project_id)
+        return _negotiate_mock(slot, sample, db, project_id)
 
     # Real negotiation path
     current_evidence = evidence_pack
     last_eval = None
 
     for turn in range(1, max_turns + 1):
-        await asyncio.sleep(0)  # yield control cooperatively
-
         # --- Evaluator step ---
         with log_agent_run(
             db,
@@ -476,8 +473,6 @@ async def negotiate(
         )
 
     # --- Turns exhausted: run a final evaluation to record the terminal state ---
-    await asyncio.sleep(0)
-
     with log_agent_run(
         db,
         project_id,
