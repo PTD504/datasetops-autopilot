@@ -296,6 +296,167 @@ def test_evaluate_skips_db_query_when_existing_questions_provided():
     db.close()
 
 
+def test_unanswerable_decision_routing_regression():
+    from unittest.mock import MagicMock
+    from backend.models.enums import SampleStatus
+
+    Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+
+    project_id = str(uuid.uuid4())
+    project = Project(id=project_id, name="Test Unanswerable Routing", benchmark_request="Make a test")
+    db.add(project)
+    db.commit()
+
+    evaluator = QualityEvaluatorAgent(db, project_id)
+
+    # 1. Valid unanswerable sample with high faithfulness but hallucination_risk_score = 1.0 -> APPROVED
+    sample_approved = Sample(
+        project_id=project_id,
+        category="general",
+        difficulty="medium",
+        sample_type="unanswerable",
+        question="What is X?",
+        expected_answer="Not enough information in the document.",
+        source_chunk_ids=["chunk_1"]
+    )
+    db.add(sample_approved)
+    db.commit()
+
+    evaluator.llm.generate_json = MagicMock(return_value={
+        "faithfulness_score": 1.0,
+        "answer_relevance_score": 1.0,
+        "context_precision_score": 1.0,
+        "context_recall_score": 0.0,
+        "hallucination_risk_score": 1.0,  # High hallucination risk, but faithfulness is high
+        "answerability_score": 0.0,
+        "clarity_score": 1.0,
+        "difficulty_match_score": 1.0,
+        "overall_score": 0.85,
+        "novelty_score": 1.0,
+        "decision": "reject", # Evaluator code should ignore LLM JSON's decision field and compute it programmatically
+        "issues": [],
+        "evaluator_notes": "Perfect refusal.",
+        "repair_instruction": ""
+    })
+
+    eval_result, needs_repair = evaluator.evaluate(sample_approved, existing_questions=[])
+    assert needs_repair is False
+    assert eval_result.decision == "pass"
+    assert sample_approved.status == SampleStatus.APPROVED
+
+    # 2. Unanswerable sample with fabricated expected answer -> REJECTED
+    # Fabricated answer means low faithfulness (e.g. 0.40)
+    sample_fabricated = Sample(
+        project_id=project_id,
+        category="general",
+        difficulty="medium",
+        sample_type="unanswerable",
+        question="What is Y?",
+        expected_answer="Y is a fictional object.", # Fabricated answer
+        source_chunk_ids=["chunk_1"]
+    )
+    db.add(sample_fabricated)
+    db.commit()
+
+    evaluator.llm.generate_json = MagicMock(return_value={
+        "faithfulness_score": 0.40,  # Low faithfulness
+        "answer_relevance_score": 0.5,
+        "context_precision_score": 0.5,
+        "context_recall_score": 0.0,
+        "hallucination_risk_score": 0.6,
+        "answerability_score": 0.0,
+        "clarity_score": 1.0,
+        "difficulty_match_score": 1.0,
+        "overall_score": 0.50,
+        "novelty_score": 1.0,
+        "decision": "reject",
+        "issues": ["Fabricated information."],
+        "evaluator_notes": "Fabricated.",
+        "repair_instruction": ""
+    })
+
+    eval_result, needs_repair = evaluator.evaluate(sample_fabricated, existing_questions=[])
+    assert needs_repair is False
+    assert eval_result.decision == "reject"
+    assert sample_fabricated.status == SampleStatus.REJECTED
+
+    # 3. Borderline unanswerable sample: repair path (retry_count < 2)
+    sample_borderline_repair = Sample(
+        project_id=project_id,
+        category="general",
+        difficulty="medium",
+        sample_type="unanswerable",
+        question="What is Z?",
+        expected_answer="Borderline answer.",
+        source_chunk_ids=["chunk_1"],
+        retry_count=0
+    )
+    db.add(sample_borderline_repair)
+    db.commit()
+
+    evaluator.llm.generate_json = MagicMock(return_value={
+        "faithfulness_score": 0.70,  # Borderline (0.50 <= 0.70 < 0.85)
+        "answer_relevance_score": 0.70,
+        "context_precision_score": 0.70,
+        "context_recall_score": 0.0,
+        "hallucination_risk_score": 0.20,
+        "answerability_score": 0.0,
+        "clarity_score": 0.90,
+        "difficulty_match_score": 1.0,
+        "overall_score": 0.75,
+        "novelty_score": 1.0,
+        "decision": "repair",
+        "issues": ["Clarity can be improved."],
+        "evaluator_notes": "Needs repair.",
+        "repair_instruction": "Improve clarity."
+    })
+
+    eval_result, needs_repair = evaluator.evaluate(sample_borderline_repair, existing_questions=[])
+    assert needs_repair is True
+    assert eval_result.decision == "repair"
+    assert sample_borderline_repair.status == SampleStatus.REPAIRING
+
+    # 4. Borderline unanswerable sample: human_review path (retry_count >= 2)
+    sample_borderline_review = Sample(
+        project_id=project_id,
+        category="general",
+        difficulty="medium",
+        sample_type="unanswerable",
+        question="What is W?",
+        expected_answer="Another borderline answer.",
+        source_chunk_ids=["chunk_1"],
+        retry_count=2
+    )
+    db.add(sample_borderline_review)
+    db.commit()
+
+    evaluator.llm.generate_json = MagicMock(return_value={
+        "faithfulness_score": 0.70,  # Borderline (0.50 <= 0.70 < 0.85)
+        "answer_relevance_score": 0.70,
+        "context_precision_score": 0.70,
+        "context_recall_score": 0.0,
+        "hallucination_risk_score": 0.20,
+        "answerability_score": 0.0,
+        "clarity_score": 0.90,
+        "difficulty_match_score": 1.0,
+        "overall_score": 0.75,
+        "novelty_score": 1.0,
+        "decision": "human_review",
+        "issues": ["Clarity can be improved."],
+        "evaluator_notes": "Needs human review.",
+        "repair_instruction": ""
+    })
+
+    eval_result, needs_repair = evaluator.evaluate(sample_borderline_review, existing_questions=[])
+    assert needs_repair is False
+    assert eval_result.decision == "human_review"
+    assert sample_borderline_review.status == SampleStatus.HUMAN_REVIEW
+
+    db.close()
+
+
 if __name__ == "__main__":
     test_pipeline()
     test_unanswerable_sample_passes()
+    test_unanswerable_decision_routing_regression()

@@ -5,6 +5,9 @@ from backend.models import Sample, Evaluation, Chunk
 from backend.models.enums import SampleStatus
 
 class QualityEvaluatorAgent(BaseAgent):
+    FAITHFULNESS_PASS_THRESHOLD = 0.85
+    FAITHFULNESS_REJECT_THRESHOLD = 0.50
+
     def __init__(self, db: Session, project_id: str):
         super().__init__(db, project_id)
         self.purpose = "Evaluate generated samples and decide if they pass, need repair, or review."
@@ -124,11 +127,11 @@ class QualityEvaluatorAgent(BaseAgent):
         if is_unanswerable:
             # For intentional unanswerable, we don't demand high answer_relevance since the point is not to answer it.
             # We also don't demand high overall generic score which might be low due to zero answerability.
-            if hallucination_risk_score <= 0.25 and faithfulness_score >= 0.85:
+            if faithfulness_score >= self.FAITHFULNESS_PASS_THRESHOLD:
                 decision = "pass"
                 status = SampleStatus.APPROVED
                 needs_repair = False
-            elif hallucination_risk_score > 0.70 or faithfulness_score < 0.50:
+            elif faithfulness_score < self.FAITHFULNESS_REJECT_THRESHOLD:
                  decision = "reject"
                  status = SampleStatus.REJECTED
                  needs_repair = False
@@ -141,15 +144,15 @@ class QualityEvaluatorAgent(BaseAgent):
                 status = SampleStatus.HUMAN_REVIEW
                 needs_repair = False
         else:
-            if faithfulness_score < 0.50 or answerability_score < 0.50 or hallucination_risk_score > 0.70:
+            if faithfulness_score < self.FAITHFULNESS_REJECT_THRESHOLD or answerability_score < 0.50 or hallucination_risk_score > 0.70:
                 decision = "reject"
                 status = SampleStatus.REJECTED
                 needs_repair = False
-            elif overall_score >= 0.80 and faithfulness_score >= 0.85 and answer_relevance_score >= 0.75 and hallucination_risk_score <= 0.25:
+            elif overall_score >= 0.80 and faithfulness_score >= self.FAITHFULNESS_PASS_THRESHOLD and answer_relevance_score >= 0.75 and hallucination_risk_score <= 0.25:
                 decision = "pass"
                 status = SampleStatus.APPROVED
                 needs_repair = False
-            elif 0.60 <= overall_score < 0.80 or faithfulness_score < 0.85:
+            elif 0.60 <= overall_score < 0.80 or faithfulness_score < self.FAITHFULNESS_PASS_THRESHOLD:
                 if sample.retry_count < 2: # max retries = 2
                     decision = "repair"
                     status = SampleStatus.REPAIRING
