@@ -89,8 +89,15 @@ def run_generation_workflow(project_id: str):
         assembler = EvidenceAssemblerTool(db, project_id)
 
         samples = []
-        existing_questions = []
-        existing_chunk_combos = []
+        # Seed existing_questions with Sample objects already in the DB for this project.
+        # This ensures even the first slot's evaluate() call has full prior context
+        # and avoids a full-table query inside evaluate() on every call.
+        existing_questions: list = list(
+            db.query(Sample).filter(Sample.project_id == project_id).all()
+        )
+        existing_chunk_combos: list = [
+            tuple(sorted(s.source_chunk_ids or [])) for s in existing_questions
+        ]
 
         # Run generator and evaluator slot-by-slot
         for idx, slot in enumerate(slots):
@@ -121,10 +128,13 @@ def run_generation_workflow(project_id: str):
                 db=db,
                 project_id=project_id,
                 max_turns=max_turns,
+                existing_questions=existing_questions,
+                existing_chunk_combos=existing_chunk_combos,
             )
 
-            # Save the final sample
-            existing_questions.append(candidate_sample.question)
+            # Append the completed sample object so subsequent slots see it as a
+            # duplicate candidate without re-querying the DB.
+            existing_questions.append(candidate_sample)
             existing_chunk_combos.append(tuple(sorted(candidate_sample.source_chunk_ids or [])))
             samples.append(candidate_sample)
 

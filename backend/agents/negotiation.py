@@ -97,7 +97,7 @@ def _fetch_new_chunks_for_grounding(
 ) -> List[str]:
     """
     Uses SemanticRetriever to find fresh chunks relevant to the repair query.
-    Falls back to NaiveRetriever keyword scoring in mock mode or when pgvector
+    Falls back to keyword scoring in mock mode or when pgvector
     is unavailable — SemanticRetriever handles this internally.
     The retriever already logs a ToolCallLog entry for the retrieve call.
     Returns a list of chunk IDs.
@@ -119,9 +119,9 @@ def _build_critic_message(
     """
     Constructs a CriticMessage from a completed Evaluation.
 
-    For weak_grounding issues, calls NaiveRetriever with the repair_instruction
+    For weak_grounding issues, calls SemanticRetriever with the repair_instruction
     (or first issue string) as the query to find genuinely new chunk IDs.
-    The NaiveRetriever call is already self-logging via log_tool_call internally.
+    The SemanticRetriever call is already self-logging via log_tool_call internally.
     """
     issue_type = _infer_issue_type(eval_result)
     severity = _infer_severity(eval_result)
@@ -169,7 +169,7 @@ def _fetch_suggested_chunks_as_evidence_pack(
     EvidencePack-like object the generator can consume.
 
     Logs a ToolCallLog entry for NegotiationChunkFetcher so the fetch is
-    visible in the WorkflowTracePanel separately from the NaiveRetriever call.
+    visible in the WorkflowTracePanel separately from the SemanticRetriever call.
     """
     from backend.tools.evidence_assembler import EvidencePack
 
@@ -318,6 +318,8 @@ def negotiate(
     db: Session,
     project_id: str,
     max_turns: int = 2,
+    existing_questions: list = None,
+    existing_chunk_combos: list = None,
 ) -> Any:
     """
     Generator-Critic negotiation loop.
@@ -326,7 +328,7 @@ def negotiate(
       1. Evaluator evaluates the current sample.
       2. If pass → return the evaluation immediately.
       3. Build CriticMessage from evaluation scores.
-         - For weak_grounding: call NaiveRetriever to get new chunk IDs.
+         - For weak_grounding: call SemanticRetriever to get new chunk IDs.
       4. If suggested_evidence_chunk_ids is non-empty: fetch those chunks from
          DB (NegotiationChunkFetcher), build a new EvidencePack.
       5. Generator repairs the sample with the CriticMessage.repair_instruction
@@ -367,7 +369,11 @@ def negotiate(
             "QualityEvaluatorAgent",
             f"Negotiation turn {turn}: evaluating sample {sample.id}",
         ) as eval_logger:
-            eval_result, needs_repair = evaluator.evaluate(sample)
+            eval_result, needs_repair = evaluator.evaluate(
+                sample,
+                existing_questions=existing_questions,
+                existing_chunk_combos=existing_chunk_combos,
+            )
             eval_logger.update(
                 decision_summary=(
                     f"Turn {turn} evaluation: {eval_result.decision}, "
@@ -408,7 +414,7 @@ def negotiate(
             return last_eval
 
         # --- Build CriticMessage ---
-        # For weak_grounding, this internally calls NaiveRetriever (already self-logging).
+        # For weak_grounding, this internally calls SemanticRetriever (already self-logging).
         critic_msg = _build_critic_message(eval_result, turn, db, project_id, sample)
 
         # --- Fetch new evidence if evaluator suggested chunk IDs ---
@@ -479,7 +485,11 @@ def negotiate(
         "QualityEvaluatorAgent",
         f"Negotiation final evaluation after {max_turns} turns for sample {sample.id}",
     ) as final_eval_logger:
-        final_eval_result, _ = evaluator.evaluate(sample)
+        final_eval_result, _ = evaluator.evaluate(
+            sample,
+            existing_questions=existing_questions,
+            existing_chunk_combos=existing_chunk_combos,
+        )
         final_eval_logger.update(
             decision_summary=(
                 f"Final evaluation after {max_turns} turns: "

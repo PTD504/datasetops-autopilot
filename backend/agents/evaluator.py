@@ -9,18 +9,31 @@ class QualityEvaluatorAgent(BaseAgent):
         super().__init__(db, project_id)
         self.purpose = "Evaluate generated samples and decide if they pass, need repair, or review."
 
-    def evaluate(self, sample: Sample, existing_questions: list[str] = None, existing_chunk_combos: list[tuple] = None) -> Tuple[Evaluation, bool]:
+    def evaluate(self, sample: Sample, existing_questions: list = None, existing_chunk_combos: list = None) -> Tuple[Evaluation, bool]:
         self._log_trace("start_evaluation", {"sample_id": sample.id})
 
         # Run duplicate checker
         from backend.tools.duplicate_checker import DuplicateCheckerTool
         checker = DuplicateCheckerTool(self.db, self.project_id)
 
-        # Determine existing samples for checker
-        existing_samples = self.db.query(Sample).filter(
-            Sample.project_id == self.project_id,
-            Sample.id != sample.id
-        ).all()
+        # Determine existing samples for the checker.
+        # When existing_questions is provided by the caller (a list of Sample objects
+        # accumulated during the workflow slot loop), use it directly — avoiding a
+        # full-table query on every evaluate() call (N+1 elimination).
+        # When None, fall back to DB query for backward compat with standalone callers
+        # (e.g., test_generator_evaluator.py calling evaluate() without workflow context).
+        if existing_questions is not None:
+            # Caller-supplied list of Sample ORM objects, filtered to exclude the current sample and rejected samples.
+            existing_samples = [
+                s for s in existing_questions
+                if getattr(s, 'id', None) != sample.id and getattr(s, 'status', None) != SampleStatus.REJECTED
+            ]
+        else:
+            existing_samples = self.db.query(Sample).filter(
+                Sample.project_id == self.project_id,
+                Sample.id != sample.id,
+                Sample.status != SampleStatus.REJECTED
+            ).all()
 
         check_result = checker.check(
             candidate_question=sample.question,
@@ -47,9 +60,9 @@ class QualityEvaluatorAgent(BaseAgent):
         # The real LLM needs concrete questions to compare against; without this,
         # novelty_score would be an unconstrained judgment with no grounding.
         # Cap at 10 questions, truncate each to 80 chars to keep prompt size bounded.
-        existing_qs = existing_samples[:10]
-        if existing_qs:
-            existing_questions_lines = [f"- {s.question[:80]}" for s in existing_qs]
+        # Reuses existing_samples already built above — no second query needed.
+        if existing_samples:
+            existing_questions_lines = [f"- {s.question[:80]}" for s in existing_samples[:10]]
             existing_questions_block = "\n".join(existing_questions_lines)
         else:
             existing_questions_block = "(none - this is the first sample)"
@@ -105,6 +118,9 @@ class QualityEvaluatorAgent(BaseAgent):
 
         is_unanswerable = sample.sample_type == "unanswerable"
 
+        # NOTE: The decision set in this block may be overridden further below
+        # if novelty_score < 0.18 (duplicate detected). See the novelty guard
+        # ~15 lines below this block.
         if is_unanswerable:
             # For intentional unanswerable, we don't demand high answer_relevance since the point is not to answer it.
             # We also don't demand high overall generic score which might be low due to zero answerability.
