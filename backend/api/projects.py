@@ -1,35 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
-from typing import List, Any, Dict
-from backend.core.database import get_db, SessionLocal
-from backend.models import Project, Document, BenchmarkPlan, Sample, AgentArtifact, Chunk, Evaluation
-from backend.models.export import Export
-from backend.models.trace import Trace
-from backend.models.enums import WorkflowState, SampleStatus, DecisionType
+from typing import List, Any
+from backend.core.database import get_db
+from backend.models import Project, Document, BenchmarkPlan, AgentArtifact, Sample
+from backend.models.enums import WorkflowState
 from backend.core.config import settings
 from pydantic import BaseModel
 from datetime import datetime
-import os
-from pathlib import Path
 
-from backend.pipeline.parser import DocumentParser
-from backend.pipeline.chunker import DocumentChunker
-from backend.agents.intake_planner import IntakePlannerAgent
-from backend.agents.source_understanding import SourceUnderstandingAgent
-from backend.agents.generator import BenchmarkGeneratorAgent
-from backend.agents.evaluator import QualityEvaluatorAgent
-from backend.agents.exporter import ExportReportAgent
-from backend.agents.negotiation import negotiate
-from backend.services.workflow_logger import log_workflow_event, log_agent_run, log_tool_call, log_agent_artifact
-
+from backend.services.workflow_logger import log_workflow_event, log_agent_run, log_agent_artifact
 from backend.services.cancellation import (
-    WorkflowCancellationRequested,
-    raise_if_cancelled,
     request_cancellation,
     workflow_state_value,
 )
-from backend.services.errors import sanitize_error_message
 
 router = APIRouter()
 
@@ -143,230 +127,19 @@ async def upload_document(project_id: str, file: UploadFile = File(...), db: Ses
         raise HTTPException(status_code=404, detail="Project not found")
 
     content = await file.read()
-    text_content = content.decode('utf-8', errors='ignore')
-    safe_filename = Path(file.filename or "upload.txt").name
-
-    # Store locally for fallback
-    os.makedirs(os.path.join(settings.UPLOADS_DIR, project_id), exist_ok=True)
-    file_path = os.path.join(settings.UPLOADS_DIR, project_id, safe_filename)
-    with open(file_path, "wb") as f:
-        f.write(content)
-
-    parser = DocumentParser()
-    cleaned_content = parser.parse(safe_filename, text_content)
-
-    db_doc = Document(
-        project_id=project_id,
-        filename=safe_filename,
-        file_path=file_path,
-        content=cleaned_content
-    )
-    db.add(db_doc)
-
-    project.workflow_state = "FILES_UPLOADED"
-    project.last_error = None
+    from backend.services.document_service import process_document_upload
+    db_doc = process_document_upload(db, project, file.filename, content)
     db.commit()
     db.refresh(db_doc)
     return {"id": db_doc.id, "filename": db_doc.filename}
 
 @router.get("/{project_id}/documents")
 def list_documents(project_id: str, db: Session = Depends(get_db)):
-    docs = db.query(Document).filter(Document.project_id == project_id).all()
-    return [{"id": d.id, "filename": d.filename, "status": d.status} for d in docs]
-
-def _run_initial_workflow(project_id: str):
-    db = SessionLocal()
-    import time
-    try:
-        project = db.query(Project).filter(Project.id == project_id).first()
-        if not project:
-            return
-
-        log_workflow_event(db, project_id, "workflow_started", f"Initial workflow started for project: {project.name}")
-
-        raise_if_cancelled(db, project_id, "initial_workflow.start")
-
-        # 1. Chunking
-        project.workflow_state = "CHUNKING"
-        db.commit()
-        log_workflow_event(db, project_id, "chunking_started", "Document chunking step started.")
-
-        chunker = DocumentChunker()
-        docs = db.query(Document).filter(Document.project_id == project_id).all()
-        total_chunks = 0
-        for doc in docs:
-             raise_if_cancelled(db, project_id, "chunking.document")
-             start_time = time.time()
-             chunks = chunker.chunk(doc.id, doc.content)
-             latency = int((time.time() - start_time) * 1000)
-
-             # Log chunker call as a tool call outside an agent run
-             log_tool_call(
-                 db=db,
-                 project_id=project_id,
-                 tool_name="DocumentChunker.chunk",
-                 input_summary=f"Filename: {doc.filename}, Content size: {len(doc.content)} chars",
-                 output_summary=f"Generated {len(chunks)} chunks",
-                 status="success",
-                 latency_ms=latency
-             )
-
-             from backend.models import Chunk
-             for c_data in chunks:
-                 new_chunk = Chunk(**c_data, project_id=project_id)
-                 db.add(new_chunk)
-             doc.status = "CHUNKED"
-             total_chunks += len(chunks)
-        db.commit()
-
-        project.workflow_state = "CHUNKED"
-        db.commit()
-        log_workflow_event(db, project_id, "chunking_completed", f"Document chunking step completed. Total chunks: {total_chunks}")
-
-        # 2. Embedding
-        import asyncio
-        from backend.pipeline.embedder import embed_chunks
-
-        raise_if_cancelled(db, project_id, "embedding.before")
-        project.workflow_state = "EMBEDDING"
-        db.commit()
-        log_workflow_event(db, project_id, "embedding_started", "Chunk embedding step started.")
-        asyncio.run(embed_chunks(project_id, db))
-
-        # 3. Source Analyzing (Phase 1)
-        raise_if_cancelled(db, project_id, "source_understanding.before")
-        project.workflow_state = "SOURCE_ANALYZING"
-        db.commit()
-        log_workflow_event(db, project_id, "source_analysis_started", "Source document analysis agent run started.")
-
-        with log_agent_run(db, project_id, "SourceUnderstandingAgent (Phase 1)", f"Analyzing {len(docs)} documents") as agent_logger:
-            from backend.models import Chunk
-            project_chunks = db.query(Chunk).filter(Chunk.project_id == project_id).all()
-
-            source_agent = SourceUnderstandingAgent(db, project_id)
-            result = source_agent.run_document_understanding(
-                docs=docs,
-                chunks=project_chunks
-            )
-            summary = result["summary"]
-            warnings = result["warnings"]
-            report = result["report"]
-
-            agent_logger.update(
-                decision_summary=summary,
-                output_json={
-                    "summary": summary,
-                    "warnings": warnings,
-                    "report": report
-                },
-                warnings=warnings
-            )
-
-        # Persist intermediate document understanding to DB
-        project.doc_understanding = report
-        db.commit()
-
-        project.workflow_state = "SOURCE_ANALYZED"
-        db.commit()
-        log_workflow_event(db, project_id, "source_analysis_completed", f"Source analysis complete. Summary: {summary}")
-
-        # 3. Planning
-        raise_if_cancelled(db, project_id, "planning.before")
-        project.workflow_state = "PLANNING"
-        db.commit()
-        log_workflow_event(db, project_id, "planning_started", "Intake planner agent run started.")
-
-        with log_agent_run(db, project_id, "IntakePlannerAgent", f"Generating benchmark plan for request: {project.benchmark_request[:200]}...") as agent_logger:
-            planner_agent = IntakePlannerAgent(db, project_id)
-            plan = planner_agent.run(project.benchmark_request, summary, warnings, source_report=report)
-            agent_logger.update(
-                decision_summary=f"Goal: {plan.goal[:100]}..., Total samples planned: {plan.sample_count.get('total') if isinstance(plan.sample_count, dict) else plan.sample_count}",
-                output_json={
-                    "plan_id": plan.id,
-                    "goal": plan.goal[:100],
-                    "categories": plan.categories,
-                    "sample_count": plan.sample_count
-                },
-                warnings=plan.source_warnings if hasattr(plan, "source_warnings") else []
-            )
-
-        # Log Benchmark Plan Draft Artifact
-        plan_total = plan.sample_count.get("total") if isinstance(plan.sample_count, dict) else plan.sample_count
-        log_agent_artifact(
-            db=db,
-            project_id=project_id,
-            artifact_type="benchmark_plan_draft",
-            title="Benchmark Plan Draft",
-            summary=f"Drafted benchmark plan targeting {plan_total} samples across categories: {', '.join(plan.categories or [])}.",
-            content_json={
-                "domain": "RAG Evaluation",
-                "language": plan.language or "English",
-                "sample_count": plan_total,
-                "categories": plan.categories or [],
-                "difficulty_distribution": plan.sample_count if isinstance(plan.sample_count, dict) else {},
-                "quality_rules": plan.quality_rules or [],
-                "warnings": plan.source_warnings or []
-            },
-            agent_run_id=agent_logger.run_id
-        )
-
-        # 4. Source Coverage Audit (Phase 2)
-        log_workflow_event(db, project_id, "source_coverage_audit_started", "Source coverage audit step started.")
-        with log_agent_run(db, project_id, "SourceUnderstandingAgent (Phase 2)", "Coverage Audit") as audit_logger:
-            audit_result = source_agent.run_coverage_audit(
-                chunks=project_chunks,
-                categories=plan.categories or [],
-                doc_understanding=report,
-                db=db,
-                project_id=project_id
-            )
-            final_summary = audit_result["summary"]
-            final_warnings = audit_result["warnings"]
-            final_report = audit_result["report"]
-
-            audit_logger.update(
-                decision_summary=final_summary,
-                output_json={
-                    "summary": final_summary,
-                    "warnings": final_warnings,
-                    "recommended_adjustments_to_plan": final_report.get("recommended_adjustments_to_plan", []),
-                    "report": final_report
-                },
-                warnings=final_warnings
-            )
-
-        # Log Source Understanding Report Artifact (combined document analysis and coverage)
-        log_agent_artifact(
-            db=db,
-            project_id=project_id,
-            artifact_type="source_understanding_report",
-            title="Source Understanding Report",
-            summary=final_summary,
-            content_json=final_report,
-            agent_run_id=audit_logger.run_id
-        )
-
-        log_workflow_event(db, project_id, "source_coverage_audit_completed", f"Source coverage audit complete. Summary: {final_summary}")
-
-
-        # Enforce budget/quota guardrails on plan creation (e.g. cap sample count or warn early)
-        enforce_quota_guardrails(db, project_id, raise_on_strict=False)
-
-        project.workflow_state = "WAITING_FOR_PLAN_APPROVAL"
-        db.commit()
-        log_workflow_event(db, project_id, "plan_ready", "Benchmark plan ready. Waiting for human approval.")
-    except WorkflowCancellationRequested as e:
-        print(f"Initial workflow cancelled: {e}")
-        log_workflow_event(db, project_id, "workflow_cancelled", f"Initial workflow cancelled: {str(e)}")
-    except Exception as e:
-        print(f"Error in initial workflow: {e}")
-        project.workflow_state = "FAILED"
-        project.last_error = sanitize_error_message(e)
-        db.commit()
-        log_workflow_event(db, project_id, "workflow_failed", f"Initial workflow failed: {sanitize_error_message(e)}")
-    finally:
-        db.close()
-
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    from backend.services.document_service import list_project_documents
+    return list_project_documents(db, project_id)
 
 @router.post("/{project_id}/start")
 def start_workflow(project_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
@@ -382,11 +155,12 @@ def start_workflow(project_id: str, background_tasks: BackgroundTasks, db: Sessi
             detail="Upload at least one source document before starting the workflow."
         )
 
-    project.workflow_state = "PARSING"
-    project.last_error = None
+    from backend.services.state_manager import transition_to
+    transition_to(db, project, WorkflowState.PARSING)
     db.commit()
 
-    background_tasks.add_task(_run_initial_workflow, project_id)
+    from backend.workflows import run_initial_workflow
+    background_tasks.add_task(run_initial_workflow, project_id)
     return {"status": "started"}
 
 @router.get("/{project_id}/status")
@@ -456,348 +230,6 @@ def get_plan(project_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Plan not found")
     return plan
 
-def _run_generation_workflow(project_id: str):
-    db = SessionLocal()
-    try:
-        project = db.query(Project).filter(Project.id == project_id).first()
-        plan = db.query(BenchmarkPlan).filter(BenchmarkPlan.project_id == project_id).first()
-        if not project or not plan:
-            return
-
-        log_workflow_event(db, project_id, "generation_started", f"Generation workflow started for project: {project.name}")
-
-        raise_if_cancelled(db, project_id, "generation_workflow.start")
-
-        project.workflow_state = "GENERATING"
-        db.commit()
-
-        # Fetch the latest source_understanding_report if available
-        source_report_json = None
-        source_report_artifact = db.query(AgentArtifact).filter(
-            AgentArtifact.project_id == project_id,
-            AgentArtifact.artifact_type == "source_understanding_report"
-        ).order_by(AgentArtifact.created_at.desc()).first()
-        if source_report_artifact and source_report_artifact.content_json:
-            source_report_json = source_report_artifact.content_json
-
-        # Determine total sample count to generate
-        total_samples = 10
-        if plan.sample_count and isinstance(plan.sample_count, dict):
-            total_samples = plan.sample_count.get("total", 10)
-
-        # Run diversity planning.
-        # Wrapped in a BenchmarkGeneratorAgent run context so DiversityPlannerTool's
-        # ToolCallLog has a non-null agent_run_id. This is the lightest change that
-        # satisfies the requirement without moving the planner call or adding a new agent.
-        from backend.pipeline.retriever import NaiveRetriever
-        from backend.tools.diversity_planner import DiversityPlannerTool
-
-        retriever = NaiveRetriever(db)
-        planner = DiversityPlannerTool(db, project_id, retriever=retriever)
-
-        log_workflow_event(db, project_id, "sample_slots_planning_started", "Sample slots planning started.")
-        with log_agent_run(db, project_id, "BenchmarkGeneratorAgent", "Planning sample slots") as slots_logger:
-            plan_result = planner.plan_slots(plan, source_report_json, total_samples)
-            slots = plan_result.get("slots", [])
-            summary = plan_result.get("summary", {})
-            slots_logger.update(
-                decision_summary=f"Planned {len(slots)} sample slots.",
-                output_json={"total_slots": len(slots), "category_counts": summary.get("category_counts", {})}
-            )
-
-        log_agent_artifact(
-            db=db,
-            project_id=project_id,
-            artifact_type="sample_slots",
-            title="Planned Sample Slots",
-            summary=f"Planned {len(slots)} sample slots. Category counts: {summary.get('category_counts', {})}",
-            content_json=plan_result
-        )
-        log_workflow_event(db, project_id, "sample_slots_created", f"Successfully planned {len(slots)} sample slots.")
-
-        generator = BenchmarkGeneratorAgent(db, project_id)
-        evaluator = QualityEvaluatorAgent(db, project_id)
-
-        # Retrieve chunks
-        from backend.pipeline.retriever import NaiveRetriever
-        retriever = NaiveRetriever(db)
-        all_chunks = retriever.retrieve(project_id, " ".join(plan.categories), top_k=50)
-
-        # Wire up slot loop
-        from backend.tools.evidence_assembler import EvidenceAssemblerTool
-
-        assembler = EvidenceAssemblerTool(db, project_id)
-
-        samples = []
-        existing_questions = []
-        existing_chunk_combos = []
-
-        # Run generator and evaluator slot-by-slot
-        for idx, slot in enumerate(slots):
-            raise_if_cancelled(db, project_id, f"generation.slot_{idx}")
-
-            # 1. Evidence Assembly
-            evidence_pack = assembler.assemble(slot, all_chunks)
-
-            # 2. Sample Generation
-            with log_agent_run(db, project_id, "BenchmarkGeneratorAgent", f"Generating sample for slot {slot['slot_id']}") as agent_logger:
-                candidate_sample = generator.generate_one(slot, evidence_pack)
-                agent_logger.update(
-                    decision_summary=f"Generated candidate sample {candidate_sample.id} for slot {slot['slot_id']}.",
-                    output_json={"sample_id": candidate_sample.id}
-                )
-
-            # Note: duplicate detection is handled inside QualityEvaluatorAgent.evaluate().
-            # The evaluator's internal DuplicateCheckerTool call runs within its agent_run
-            # context, so ToolCallLog records have a non-null agent_run_id.
-
-            # 4. Generator-Critic Negotiation (replaces hardcoded repair while-loop).
-            # negotiate() runs up to max_turns critic->generator rounds, logs every
-            # turn as a WorkflowEvent(event_type="negotiation_turn"), and routes the
-            # sample to HUMAN_REVIEW if all turns are exhausted without a pass.
-            import asyncio
-            from backend.core.config import settings
-
-            raise_if_cancelled(db, project_id, f"negotiation.slot_{idx}.start")
-
-            max_turns = settings.QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE
-            asyncio.run(
-                negotiate(
-                    slot=slot,
-                    sample=candidate_sample,
-                    evidence_pack=evidence_pack,
-                    generator=generator,
-                    evaluator=evaluator,
-                    db=db,
-                    project_id=project_id,
-                    max_turns=max_turns,
-                )
-            )
-
-            # Save the final sample
-            existing_questions.append(candidate_sample.question)
-            existing_chunk_combos.append(tuple(sorted(candidate_sample.source_chunk_ids or [])))
-            samples.append(candidate_sample)
-
-        # Log Generated Samples Snapshot Artifact
-        cat_dist = {}
-        diff_dist = {}
-        type_dist = {}
-        preview = []
-        for s in samples:
-            cat_dist[s.category] = cat_dist.get(s.category, 0) + 1
-            diff_dist[s.difficulty] = diff_dist.get(s.difficulty, 0) + 1
-            type_dist[s.sample_type] = type_dist.get(s.sample_type, 0) + 1
-            if len(preview) < 3:
-                preview.append({
-                    "id": s.id,
-                    "category": s.category,
-                    "difficulty": s.difficulty,
-                    "sample_type": s.sample_type,
-                    "question": s.question[:100] + "..." if len(s.question) > 100 else s.question
-                })
-
-        log_agent_artifact(
-            db=db,
-            project_id=project_id,
-            artifact_type="generated_samples_snapshot",
-            title="Generated Samples Snapshot",
-            summary=f"Generated {len(samples)} samples. Distribution: easy={diff_dist.get('easy', 0)}, medium={diff_dist.get('medium', 0)}, hard={diff_dist.get('hard', 0)}.",
-            content_json={
-                "total_generated": len(samples),
-                "sample_ids": [s.id for s in samples],
-                "category_distribution": cat_dist,
-                "difficulty_distribution": diff_dist,
-                "sample_type_distribution": type_dist,
-                "sample_preview": preview,
-                "warnings": []
-            }
-        )
-
-        raise_if_cancelled(db, project_id, "evaluation.after")
-        project.workflow_state = "EVALUATING"
-        db.commit()
-        log_workflow_event(db, project_id, "evaluation_started", f"Quality evaluation completed for {len(samples)} samples.")
-
-        # Log Quality Evaluation Report
-        evals = db.query(Evaluation).join(Sample).filter(Sample.project_id == project_id).all()
-        eval_scores = [e.overall_score for e in evals if e.overall_score is not None]
-        faith_scores = [e.faithfulness_score for e in evals if e.faithfulness_score is not None]
-        rel_scores = [e.answer_relevance_score for e in evals if e.answer_relevance_score is not None]
-        
-        passed_count = len([s for s in samples if s.status == SampleStatus.APPROVED])
-        human_review_count = len([s for s in samples if s.status == SampleStatus.HUMAN_REVIEW])
-        rejected_count = len([s for s in samples if s.status == SampleStatus.REJECTED])
-        repairing_count = len([s for s in samples if s.status == SampleStatus.REPAIRING])
-        
-        all_issues = []
-        for e in evals:
-            if e.issues:
-                all_issues.extend(e.issues)
-        unique_issues = list(set(all_issues))[:5]
-        
-        def safe_avg(scores):
-            return round(sum(scores) / len(scores), 3) if scores else 0.0
-
-        log_agent_artifact(
-            db=db,
-            project_id=project_id,
-            artifact_type="evaluation_report",
-            title="Quality Evaluation Report",
-            summary=f"Evaluated {len(samples)} samples. Pass: {passed_count}, Human Review: {human_review_count}, Reject: {rejected_count}.",
-            content_json={
-                "total_evaluated": len(samples),
-                "average_scores": {
-                    "overall": safe_avg(eval_scores),
-                    "faithfulness": safe_avg(faith_scores),
-                    "answer_relevance": safe_avg(rel_scores)
-                },
-                "decision_counts": {
-                    "pass": passed_count,
-                    "human_review": human_review_count,
-                    "reject": rejected_count,
-                    "repair": repairing_count
-                },
-                "common_issues": unique_issues,
-                "warnings": []
-            }
-        )
-
-        repaired_samples = [s for s in samples if s.retry_count > 0]
-        if repaired_samples:
-            successful_repairs = len([s for s in repaired_samples if s.status == SampleStatus.APPROVED])
-            failed_repairs = len(repaired_samples) - successful_repairs
-            log_agent_artifact(
-                db=db,
-                project_id=project_id,
-                artifact_type="repair_attempts_summary",
-                title="Repair Attempts Summary",
-                summary=f"Attempted repairs on {len(repaired_samples)} samples. Success: {successful_repairs}, Failed: {failed_repairs}.",
-                content_json={
-                    "total_repairs": len(repaired_samples),
-                    "successful_repairs": successful_repairs,
-                    "failed_repairs": failed_repairs,
-                    "repaired_sample_ids": [s.id for s in repaired_samples]
-                }
-            )
-
-        project.workflow_state = "WAITING_FOR_SAMPLE_REVIEW"
-        db.commit()
-        log_workflow_event(db, project_id, "waiting_for_sample_review", "Workflow waiting for human sample review.")
-
-
-    except WorkflowCancellationRequested as e:
-        print(f"Generation workflow cancelled: {e}")
-        log_workflow_event(db, project_id, "workflow_cancelled", f"Generation workflow cancelled: {str(e)}")
-    except Exception as e:
-        print(f"Error in generation workflow: {e}")
-        project.workflow_state = "FAILED"
-        project.last_error = sanitize_error_message(e)
-        db.commit()
-        log_workflow_event(db, project_id, "workflow_failed", f"Generation workflow failed: {sanitize_error_message(e)}")
-    finally:
-        db.close()
-
-
-def enforce_quota_guardrails(db: Session, project_id: str, raise_on_strict: bool = True):
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        return
-
-    plan = db.query(BenchmarkPlan).filter(BenchmarkPlan.project_id == project_id).first()
-    if not plan:
-        return
-
-    requested_total = 10
-    if plan.sample_count and isinstance(plan.sample_count, dict):
-        requested_total = plan.sample_count.get("total", 10)
-
-    limit = settings.max_samples_per_run_limit
-    mode = settings.BUDGET_GUARDRAIL_MODE.lower()
-
-    if requested_total > limit:
-        if mode == "strict":
-            warning_msg = f"Budget limit exceeded in strict mode. This plan cannot be approved with {requested_total} samples (max allowed is {limit})."
-            warnings = list(plan.source_warnings or [])
-            if warning_msg not in warnings:
-                warnings.append(warning_msg)
-                plan.source_warnings = warnings
-                db.commit()
-
-            if raise_on_strict:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Requested sample count ({requested_total}) exceeds the maximum allowed limit ({limit}) in strict mode."
-                )
-        elif mode == "cap":
-            original_total = requested_total
-            easy = plan.sample_count.get("easy", 0)
-            medium = plan.sample_count.get("medium", 0)
-            hard = plan.sample_count.get("hard", 0)
-
-            if original_total > 0:
-                factor = limit / original_total
-                new_easy = int(round(easy * factor))
-                new_medium = int(round(medium * factor))
-                new_hard = limit - (new_easy + new_medium)
-                if new_hard < 0:
-                    new_hard = 0
-                    new_medium = limit - new_easy
-            else:
-                new_easy = limit // 3
-                new_medium = limit // 3
-                new_hard = limit - (new_easy + new_medium)
-
-            plan.sample_count = {
-                "total": limit,
-                "easy": new_easy,
-                "medium": new_medium,
-                "hard": new_hard
-            }
-            
-            warning_msg = f"Sample count capped from {original_total} to {limit} due to budget guardrail limit."
-            warnings = list(plan.source_warnings or [])
-            if warning_msg not in warnings:
-                warnings.append(warning_msg)
-                plan.source_warnings = warnings
-            
-            # Log trace if not already present
-            existing_trace = db.query(Trace).filter(
-                Trace.project_id == project_id,
-                Trace.action.like("Budget Guardrail: Capped requested samples%")
-            ).first()
-            if not existing_trace:
-                trace = Trace(
-                    project_id=project_id,
-                    agent_name="System",
-                    action=f"Budget Guardrail: Capped requested samples from {original_total} to {limit}.",
-                    details={"original": original_total, "capped": limit}
-                )
-                db.add(trace)
-            db.commit()
-
-        elif mode == "warn":
-            warning_msg = f"Budget Guardrail Warning: Run contains {requested_total} samples, which exceeds the configured limit of {limit}."
-            warnings = list(plan.source_warnings or [])
-            if warning_msg not in warnings:
-                warnings.append(warning_msg)
-                plan.source_warnings = warnings
-            
-            existing_trace = db.query(Trace).filter(
-                Trace.project_id == project_id,
-                Trace.action == warning_msg
-            ).first()
-            if not existing_trace:
-                trace = Trace(
-                    project_id=project_id,
-                    agent_name="System",
-                    action=warning_msg,
-                    details={"requested": requested_total, "limit": limit}
-                )
-                db.add(trace)
-            db.commit()
-
-
 @router.post("/{project_id}/plan/approve")
 def approve_plan(project_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -806,15 +238,14 @@ def approve_plan(project_id: str, background_tasks: BackgroundTasks, db: Session
     if project.cancel_requested:
         return request_cancellation(db, project)
 
-    # Enforce quota guardrails. This can raise an HTTPException(400) in strict mode.
+    from backend.services.quota import enforce_quota_guardrails
     enforce_quota_guardrails(db, project_id, raise_on_strict=True)
 
-    project.workflow_state = "PLAN_APPROVED"
-    project.last_error = None
+    from backend.services.state_manager import transition_to
+    transition_to(db, project, WorkflowState.PLAN_APPROVED)
     log_workflow_event(db, project_id, "plan_approved", "Benchmark plan approved by human review.")
     db.commit()
 
-    # Log Approved Benchmark Plan Artifact
     plan = db.query(BenchmarkPlan).filter(BenchmarkPlan.project_id == project_id).first()
     if plan:
         plan_total = plan.sample_count.get("total") if isinstance(plan.sample_count, dict) else plan.sample_count
@@ -835,21 +266,17 @@ def approve_plan(project_id: str, background_tasks: BackgroundTasks, db: Session
             }
         )
 
-
-    background_tasks.add_task(_run_generation_workflow, project_id)
+    from backend.workflows import run_generation_workflow
+    background_tasks.add_task(run_generation_workflow, project_id)
     return {"status": "approved"}
 
 @router.get("/{project_id}/traces")
 def get_traces(project_id: str, db: Session = Depends(get_db)):
-    from backend.models.trace import Trace
-    traces = db.query(Trace).filter(Trace.project_id == project_id).order_by(Trace.created_at.asc()).all()
-    return [{
-        "id": t.id,
-        "agent_name": t.agent_name,
-        "action": t.action,
-        "details": t.details,
-        "created_at": t.created_at
-    } for t in traces]
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    from backend.services.trace_service import get_traces
+    return get_traces(db, project_id)
 
 @router.get("/{project_id}/agent-runs", response_model=List[AgentRunResponse])
 def get_agent_runs(project_id: str, db: Session = Depends(get_db)):
@@ -888,89 +315,12 @@ def get_artifact(project_id: str, artifact_id: str, db: Session = Depends(get_db
     return artifact
 
 @router.get("/{project_id}/trace", response_model=List[TraceItemResponse])
-
-def get_combined_trace(project_id: str, db: Session = Depends(get_db)):
+def get_combined_trace_endpoint(project_id: str, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-
-    from backend.models.logging_models import AgentRun, ToolCallLog, WorkflowEvent, AgentArtifact
-
-    events = db.query(WorkflowEvent).filter(WorkflowEvent.project_id == project_id).all()
-    runs = db.query(AgentRun).filter(AgentRun.project_id == project_id).all()
-    tool_calls = db.query(ToolCallLog).filter(ToolCallLog.project_id == project_id).all()
-    artifacts = db.query(AgentArtifact).filter(AgentArtifact.project_id == project_id).all()
-
-    items = []
-
-    for event in events:
-        items.append({
-            "type": "workflow_event",
-            "timestamp": event.created_at,
-            "data": {
-                "id": event.id,
-                "project_id": event.project_id,
-                "event_type": event.event_type,
-                "message": event.message,
-                "event_metadata": event.event_metadata,
-                "created_at": event.created_at
-            }
-        })
-
-    for run in runs:
-        items.append({
-            "type": "agent_run",
-            "timestamp": run.started_at,
-            "data": {
-                "id": run.id,
-                "project_id": run.project_id,
-                "agent_name": run.agent_name,
-                "status": run.status,
-                "input_summary": run.input_summary,
-                "decision_summary": run.decision_summary,
-                "output_json": run.output_json,
-                "warnings": run.warnings,
-                "confidence_score": run.confidence_score,
-                "started_at": run.started_at,
-                "completed_at": run.completed_at
-            }
-        })
-
-    for tc in tool_calls:
-        items.append({
-            "type": "tool_call",
-            "timestamp": tc.created_at,
-            "data": {
-                "id": tc.id,
-                "project_id": tc.project_id,
-                "agent_run_id": tc.agent_run_id,
-                "tool_name": tc.tool_name,
-                "input_summary": tc.input_summary,
-                "output_summary": tc.output_summary,
-                "status": tc.status,
-                "latency_ms": tc.latency_ms,
-                "created_at": tc.created_at
-            }
-        })
-
-    for art in artifacts:
-        items.append({
-            "type": "artifact",
-            "timestamp": art.created_at,
-            "data": {
-                "id": art.id,
-                "project_id": art.project_id,
-                "agent_run_id": art.agent_run_id,
-                "artifact_type": art.artifact_type,
-                "title": art.title,
-                "summary": art.summary,
-                "content_json": art.content_json,
-                "created_at": art.created_at
-            }
-        })
-
-    items.sort(key=lambda x: x["timestamp"])
-    return items
+    from backend.services.trace_service import get_combined_trace
+    return get_combined_trace(db, project_id)
 
 @router.get("/{project_id}/export/download")
 def download_export(project_id: str, db: Session = Depends(get_db)):
@@ -978,6 +328,7 @@ def download_export(project_id: str, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    from backend.models import Export
     export_record = db.query(Export).filter(
         Export.project_id == project_id,
         Export.status == "READY"
@@ -989,169 +340,38 @@ def download_export(project_id: str, db: Session = Depends(get_db)):
             detail="Export is not ready yet. Please complete the workflow first."
         )
 
-    # OSS mode support
-    if settings.STORAGE_MODE == "oss":
-        try:
-            from backend.wrappers.oss_client import AlibabaOSSClient
-            oss = AlibabaOSSClient()
-            if not oss.use_local:
-                signed_url = oss.get_signed_url(f"exports/{project_id}/export.zip")
-                return RedirectResponse(url=signed_url)
-        except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to generate presigned download link for OSS: {str(e)}"
-            )
-
-    # Local mode resolution
-    local_path = None
-    url = export_record.file_urls.get("export.zip") if export_record.file_urls else None
-    
-    if url and url.startswith("file://"):
-        p = url[7:]
-        # strip leading slash on Windows if it looks like /D:/...
-        if p.startswith("/") and len(p) > 2 and p[2] == ":":
-            p = p.lstrip("/")
-        if os.path.exists(p):
-            local_path = p
-
-    if not local_path:
-        # Check settings local storage dir
-        p = os.path.join(settings.LOCAL_STORAGE_DIR, f"exports/{project_id}/export.zip")
-        if os.path.exists(p):
-            local_path = p
-
-    if not local_path:
-        # Check backend build directory fallback
-        p = os.path.join(settings.EXPORTS_DIR, project_id, "export.zip")
-        if os.path.exists(p):
-            local_path = p
-
-    if not local_path or not os.path.exists(local_path):
+    from backend.services.export_service import resolve_export_download_path
+    resolved = resolve_export_download_path(db, project_id, export_record)
+    if not resolved:
         raise HTTPException(
             status_code=404,
             detail="Export package zip file not found on server storage."
         )
 
-    return FileResponse(
-        path=local_path,
-        filename=f"datasetops-export-{project_id}.zip",
-        media_type="application/zip"
-    )
+    if resolved.startswith("http://") or resolved.startswith("https://"):
+        return RedirectResponse(url=resolved)
+    else:
+        return FileResponse(
+            path=resolved,
+            filename=f"datasetops-export-{project_id}.zip",
+            media_type="application/zip"
+        )
 
 @router.get("/{project_id}/export/summary")
-def get_export_summary(project_id: str, db: Session = Depends(get_db)):
-    from backend.models.sample import Evaluation
-    from backend.models.enums import SampleStatus
-
+def get_export_summary_endpoint(project_id: str, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-
-    all_samples = db.query(Sample).filter(Sample.project_id == project_id).all()
-    sample_ids = [s.id for s in all_samples]
-
-    evals = []
-    if sample_ids:
-        # Fetch latest evaluation for each sample
-        for sid in sample_ids:
-            latest_eval = db.query(Evaluation).filter(Evaluation.sample_id == sid).order_by(Evaluation.created_at.desc()).first()
-            if latest_eval:
-                evals.append(latest_eval)
-
-    approved_count = len([s for s in all_samples if s.status == SampleStatus.APPROVED])
-    total_count = len(all_samples)
-
-    sample_types = {}
-    statuses = {}
-    for s in all_samples:
-        st = s.sample_type or "unknown"
-        sample_types[st] = sample_types.get(st, 0) + 1
-
-        status = s.status.value if s.status else "unknown"
-        statuses[status] = statuses.get(status, 0) + 1
-
-    avg_overall = sum([e.overall_score or 0 for e in evals]) / len(evals) if evals else 0
-    avg_faithfulness = sum([e.faithfulness_score or 0 for e in evals]) / len(evals) if evals else 0
-    avg_hallucination_risk = sum([e.hallucination_risk_score or 0 for e in evals]) / len(evals) if evals else 0
-
-    return {
-        "export_ready": project.workflow_state == "EXPORT_READY",
-        "approved_sample_count": approved_count,
-        "total_sample_count": total_count,
-        "sample_type_distribution": sample_types,
-        "status_distribution": statuses,
-        "average_metrics": {
-            "overall": round(avg_overall, 2),
-            "faithfulness": round(avg_faithfulness, 2),
-            "hallucination_risk": round(avg_hallucination_risk, 2)
-        }
-    }
+    from backend.services.export_service import get_export_summary
+    return get_export_summary(db, project)
 
 @router.get("/{project_id}/samples")
-def get_samples(project_id: str, status: str = None, db: Session = Depends(get_db)):
-    from backend.models.sample import Evaluation
-    from backend.models.document import Chunk
-    query = db.query(Sample).filter(Sample.project_id == project_id)
-    if status:
-        query = query.filter(Sample.status == status)
-
-    samples = query.all()
-    results = []
-
-    for s in samples:
-        latest_eval = db.query(Evaluation).filter(Evaluation.sample_id == s.id).order_by(Evaluation.created_at.desc()).first()
-        
-        evidence = []
-        evidence_unavailable = False
-        chunk_ids = s.source_chunk_ids
-        if chunk_ids and isinstance(chunk_ids, list):
-            chunks_by_id = {c.id: c for c in db.query(Chunk).filter(Chunk.id.in_(chunk_ids)).all()}
-            for cid in chunk_ids:
-                if cid in chunks_by_id:
-                    chunk = chunks_by_id[cid]
-                    text_snippet = chunk.text[:1000] if chunk.text else ""
-                    doc_name = chunk.document.filename if chunk.document else "Unknown Document"
-                    evidence.append({
-                        "id": chunk.id,
-                        "index": chunk.index,
-                        "document_name": doc_name,
-                        "text": text_snippet,
-                        "evidence_unavailable": False
-                    })
-                else:
-                    evidence.append({
-                        "id": cid,
-                        "index": -1,
-                        "document_name": "Unknown Document",
-                        "text": "Unavailable/Missing evidence chunk.",
-                        "evidence_unavailable": True
-                    })
-                    evidence_unavailable = True
-        else:
-            evidence_unavailable = True
-
-        s_dict = {
-            "id": s.id,
-            "category": s.category,
-            "difficulty": s.difficulty,
-            "sample_type": s.sample_type,
-            "question": s.question,
-            "expected_answer": s.expected_answer,
-            "status": s.status.value,
-            "overall_score": latest_eval.overall_score if latest_eval else None,
-            "decision": latest_eval.decision if latest_eval else None,
-            "faithfulness_score": latest_eval.faithfulness_score if latest_eval else None,
-            "answer_relevance_score": latest_eval.answer_relevance_score if latest_eval else None,
-            "hallucination_risk_score": latest_eval.hallucination_risk_score if latest_eval else None,
-            "issues": latest_eval.issues if latest_eval else [],
-            "evidence": evidence,
-            "evidence_unavailable": evidence_unavailable or (len(evidence) == 0)
-        }
-        results.append(s_dict)
-
-    return results
-
+def get_samples_endpoint(project_id: str, status: str = None, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    from backend.services.sample_service import get_samples
+    return get_samples(db, project_id, status)
 
 class PlanUpdate(BaseModel):
     goal: str
@@ -1159,7 +379,6 @@ class PlanUpdate(BaseModel):
     sample_count: dict
     categories: List[str]
     quality_rules: List[str]
-
 
 @router.put("/{project_id}/plan")
 def update_plan(project_id: str, plan_update: PlanUpdate, db: Session = Depends(get_db)):
@@ -1266,11 +485,11 @@ def update_plan(project_id: str, plan_update: PlanUpdate, db: Session = Depends(
         agent_run_id=audit_logger.run_id
     )
 
+    from backend.services.quota import enforce_quota_guardrails
     enforce_quota_guardrails(db, project_id, raise_on_strict=True)
 
     db.refresh(plan)
     return plan
-
 
 class SampleUpdate(BaseModel):
     question: str
@@ -1278,9 +497,8 @@ class SampleUpdate(BaseModel):
     category: str
     difficulty: str
 
-
 @router.post("/{project_id}/samples/{sample_id}/approve")
-def approve_sample(project_id: str, sample_id: str, db: Session = Depends(get_db)):
+def approve_sample_endpoint(project_id: str, sample_id: str, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -1289,31 +507,14 @@ def approve_sample(project_id: str, sample_id: str, db: Session = Depends(get_db
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    from backend.models.sample import ReviewDecision
-
-    sample.status = SampleStatus.APPROVED
-
-    decision = ReviewDecision(
-        sample_id=sample_id,
-        decision=DecisionType.APPROVE,
-        notes="Manually approved"
-    )
-    db.add(decision)
-
-    trace = Trace(
-        project_id=project_id,
-        agent_name="System",
-        action=f"Approved sample {sample_id}.",
-        details={"sample_id": sample_id}
-    )
-    db.add(trace)
+    from backend.services.sample_service import approve_sample
+    approve_sample(db, sample)
     db.commit()
     db.refresh(sample)
     return sample
-
 
 @router.post("/{project_id}/samples/{sample_id}/reject")
-def reject_sample(project_id: str, sample_id: str, db: Session = Depends(get_db)):
+def reject_sample_endpoint(project_id: str, sample_id: str, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -1322,31 +523,14 @@ def reject_sample(project_id: str, sample_id: str, db: Session = Depends(get_db)
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
 
-    from backend.models.sample import ReviewDecision
-
-    sample.status = SampleStatus.REJECTED
-
-    decision = ReviewDecision(
-        sample_id=sample_id,
-        decision=DecisionType.REJECT,
-        notes="Manually rejected"
-    )
-    db.add(decision)
-
-    trace = Trace(
-        project_id=project_id,
-        agent_name="System",
-        action=f"Rejected sample {sample_id}.",
-        details={"sample_id": sample_id}
-    )
-    db.add(trace)
+    from backend.services.sample_service import reject_sample
+    reject_sample(db, sample)
     db.commit()
     db.refresh(sample)
     return sample
 
-
 @router.put("/{project_id}/samples/{sample_id}")
-def update_sample(project_id: str, sample_id: str, sample_update: SampleUpdate, db: Session = Depends(get_db)):
+def update_sample_endpoint(project_id: str, sample_id: str, sample_update: SampleUpdate, db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -1364,31 +548,11 @@ def update_sample(project_id: str, sample_id: str, sample_update: SampleUpdate, 
     if sample_update.difficulty.lower() not in valid_difficulties:
         raise HTTPException(status_code=400, detail=f"Difficulty must be one of: {valid_difficulties}")
 
-    from backend.models.sample import ReviewDecision
-
-    sample.question = sample_update.question
-    sample.expected_answer = sample_update.expected_answer
-    sample.category = sample_update.category
-    sample.difficulty = sample_update.difficulty.lower()
-
-    decision = ReviewDecision(
-        sample_id=sample_id,
-        decision=DecisionType.EDIT,
-        notes="Manually edited content"
-    )
-    db.add(decision)
-
-    trace = Trace(
-        project_id=project_id,
-        agent_name="System",
-        action=f"Edited sample {sample_id}.",
-        details={"sample_id": sample_id}
-    )
-    db.add(trace)
+    from backend.services.sample_service import update_sample
+    update_sample(db, sample, sample_update.question, sample_update.expected_answer, sample_update.category, sample_update.difficulty)
     db.commit()
     db.refresh(sample)
     return sample
-
 
 @router.post("/{project_id}/samples/approve-and-export")
 def approve_and_export(project_id: str, db: Session = Depends(get_db)):
@@ -1402,83 +566,9 @@ def approve_and_export(project_id: str, db: Session = Depends(get_db)):
             detail=f"Project is not in a valid state for finalization: {project.workflow_state}"
         )
 
-    # 1. Update remaining non-rejected samples to APPROVED
-    samples = db.query(Sample).filter(Sample.project_id == project_id).all()
-    for s in samples:
-        if s.status in [SampleStatus.HUMAN_REVIEW, SampleStatus.GENERATED, SampleStatus.REPAIRING] or s.status is None:
-            s.status = SampleStatus.APPROVED
-
-    db.commit()
-
-    # 2. Log workflow event for sample review approval
-    log_workflow_event(db, project_id, "sample_review_approved", "Human sample review completed and approved.")
-
-    # 3. Transition to EXPORTING
-    project.workflow_state = WorkflowState.EXPORTING.value
-    db.commit()
-
-    # 4. Run Export
-    log_workflow_event(db, project_id, "export_started", "Starting human-approved benchmark package export.")
-    
-    from backend.agents.exporter import ExportReportAgent
-    with log_agent_run(db, project_id, "ExportReportAgent", "Generating final benchmark package") as agent_logger:
-        exporter = ExportReportAgent(db, project_id)
-        export_record = exporter.run()
-        
-        agent_logger.update(
-            decision_summary=f"Exported package successfully: {export_record.file_urls.get('export.zip') if (export_record and export_record.file_urls) else 'N/A'}",
-            output_json={
-                "export_id": export_record.id if export_record else None,
-                "file_urls": export_record.file_urls if export_record else None
-            }
-        )
-
-    # 5. Transition project to EXPORT_READY
-    project.workflow_state = WorkflowState.EXPORT_READY.value
-    db.commit()
-    log_workflow_event(db, project_id, "export_completed", "Benchmark export completed successfully.")
-
-    # 6. Log Artifacts
-    approved_samples = [s for s in samples if s.status == SampleStatus.APPROVED]
-    rejected_samples = [s for s in samples if s.status == SampleStatus.REJECTED]
-
-    # Log approved_samples_summary
-    log_agent_artifact(
-        db=db,
-        project_id=project_id,
-        artifact_type="approved_samples_summary",
-        title="Approved Samples Summary",
-        summary=f"Human review completed. Approved {len(approved_samples)} sample(s), Rejected {len(rejected_samples)} sample(s).",
-        content_json={
-            "total_samples": len(samples),
-            "approved_count": len(approved_samples),
-            "rejected_count": len(rejected_samples),
-            "approved_sample_ids": [s.id for s in approved_samples]
-        },
-        agent_run_id=agent_logger.run_id
-    )
-
-    # Log export_summary
-    if export_record:
-        log_agent_artifact(
-            db=db,
-            project_id=project_id,
-            artifact_type="export_summary",
-            title="Export Package Summary",
-            summary=f"Benchmark package exported with {len(approved_samples)} approved samples.",
-            content_json={
-                "export_id": export_record.id,
-                "exported_files": list(export_record.file_urls.keys()) if export_record.file_urls else ["export.zip"],
-                "approved_sample_count": len(approved_samples),
-                "rejected_sample_count": len(rejected_samples),
-                "file_urls": {k: "Safe download endpoint" for k in export_record.file_urls.keys()} if export_record.file_urls else {},
-                "generated_at": datetime.utcnow().isoformat()
-            },
-            agent_run_id=agent_logger.run_id
-        )
-
+    from backend.workflows import run_export_workflow
+    export_record = run_export_workflow(db, project)
     return {"status": "success", "export_id": export_record.id if export_record else None}
-
 
 @router.post("/{project_id}/export")
 def rebuild_export(project_id: str, db: Session = Depends(get_db)):
@@ -1486,43 +576,6 @@ def rebuild_export(project_id: str, db: Session = Depends(get_db)):
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    from backend.agents.exporter import ExportReportAgent
-    log_workflow_event(db, project_id, "export_rebuild_started", "Rebuilding benchmark export package.")
-    with log_agent_run(db, project_id, "ExportReportAgent", "Rebuilding final benchmark package") as agent_logger:
-        exporter = ExportReportAgent(db, project_id)
-        export_record = exporter.run()
-        agent_logger.update(
-            decision_summary=f"Rebuild package successfully: {export_record.file_urls.get('export.zip') if (export_record and export_record.file_urls) else 'N/A'}",
-            output_json={
-                "export_id": export_record.id if export_record else None,
-                "file_urls": export_record.file_urls if export_record else None
-            }
-        )
-
-        # Log Export Summary Artifact
-        if export_record:
-            from backend.models.enums import SampleStatus
-            all_samples = db.query(Sample).filter(Sample.project_id == project_id).all()
-            approved_count = len([s for s in all_samples if s.status == SampleStatus.APPROVED])
-            rejected_count = len([s for s in all_samples if s.status == SampleStatus.REJECTED])
-            log_agent_artifact(
-                db=db,
-                project_id=project_id,
-                artifact_type="export_summary",
-                title="Export Package Summary (Rebuilt)",
-                summary=f"Benchmark package rebuilt with {approved_count} approved samples.",
-                content_json={
-                    "export_id": export_record.id,
-                    "exported_files": list(export_record.file_urls.keys()) if export_record.file_urls else ["export.zip"],
-                    "approved_sample_count": approved_count,
-                    "rejected_sample_count": rejected_count,
-                    "file_urls": {k: "Safe download endpoint" for k in export_record.file_urls.keys()} if export_record.file_urls else {},
-                    "generated_at": datetime.utcnow().isoformat(),
-                    "is_rebuild": True
-                },
-                agent_run_id=agent_logger.run_id
-            )
-
-    log_workflow_event(db, project_id, "export_rebuild_completed", "Benchmark export rebuild completed successfully.")
-
+    from backend.workflows import rebuild_export_workflow
+    export_record = rebuild_export_workflow(db, project)
     return {"status": "success", "export_id": export_record.id}
