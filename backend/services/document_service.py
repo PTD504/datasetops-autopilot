@@ -7,7 +7,6 @@ from backend.pipeline.parser import DocumentParser
 
 def process_document_upload(db: Session, project: Project, filename: str, content: bytes) -> Document:
     """Process uploaded file content, store it locally, parse it, and save the document to the database."""
-    text_content = content.decode('utf-8', errors='ignore')
     safe_filename = Path(filename or "upload.txt").name
 
     # Store locally for fallback
@@ -17,7 +16,7 @@ def process_document_upload(db: Session, project: Project, filename: str, conten
         f.write(content)
 
     parser = DocumentParser()
-    cleaned_content = parser.parse(safe_filename, text_content)
+    cleaned_content = parser.parse(safe_filename, content)
 
     db_doc = Document(
         project_id=project.id,
