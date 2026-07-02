@@ -128,3 +128,28 @@
     @apply font-sans;
   }
 }
+
+/* Landing page animations */
+@keyframes particle-flow {
+  0% { top: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(6deg); }
+  50% { transform: translateY(-12px) rotate(8deg); }
+}
+@keyframes float-delayed {
+  0%, 100% { transform: translateY(0px) rotate(-6deg); }
+  50% { transform: translateY(12px) rotate(-4deg); }
+}
+.animate-particle {
+  animation: particle-flow 1.0s infinite linear;
+}
+.animate-float {
+  animation: float 8s ease-in-out infinite;
+}
+.animate-float-delayed {
+  animation: float-delayed 10s ease-in-out infinite;
+}
