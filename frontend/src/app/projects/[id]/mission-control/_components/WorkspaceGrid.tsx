@@ -1,26 +1,28 @@
 import React, { useState } from "react";
 import { X, Terminal, Activity } from "lucide-react";
 import { useMissionControlStore } from "../../../../../components/mission-control/store/useMissionControlStore";
+import HumanReviewOverlay from "../../../../../components/mission-control/HumanReviewOverlay";
+import { WorkflowStatus } from "../../../../../components/mission-control/types";
 
 interface WorkspaceGridProps {
   graphComponent: React.ReactNode;
-  inspectorComponent: React.ReactNode;
   timelineComponent: React.ReactNode;
   consoleComponent: React.ReactNode;
   telemetryComponent: React.ReactNode;
+  projectId: string;
+  workflowStatus: WorkflowStatus;
 }
 
 export default function WorkspaceGrid({
   graphComponent,
-  inspectorComponent,
   timelineComponent,
   consoleComponent,
   telemetryComponent,
+  projectId,
+  workflowStatus,
 }: WorkspaceGridProps) {
   const { selectedNodeId, setSelectedNodeId } = useMissionControlStore();
   const [activeTab, setActiveTab] = useState<"timeline" | "console">("timeline");
-  
-  const isInspectorOpen = selectedNodeId !== null;
 
   return (
     <div className="w-full flex-1 flex flex-col gap-6 relative z-10">
@@ -31,12 +33,19 @@ export default function WorkspaceGrid({
           {/* Left glowing edge highlight */}
           <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-indigo-500 via-purple-550 to-blue-600 rounded-l-2xl opacity-60"></div>
           
-          <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-4 shrink-0">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-3 items-center border-b border-white/[0.06] pb-3 mb-4 shrink-0 gap-3">
+            <div className="flex flex-col">
               <h3 className="text-sm font-bold text-white uppercase tracking-wide">Directional Flow Network</h3>
               <p className="text-[10px] text-slate-400">Autonomous Multi-Agent Execution Pipeline</p>
             </div>
-            <div className="flex items-center gap-3">
+            
+            {/* Center column: Human Review Checkpoint Overlay Notification */}
+            <div className="flex justify-start md:justify-center">
+              <HumanReviewOverlay projectId={projectId} workflowStatus={workflowStatus} />
+            </div>
+
+            {/* Right column: Active Node Tracking */}
+            <div className="flex justify-start md:justify-end items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
                 <span className="text-[9px] font-semibold text-cyan-400 uppercase tracking-wider bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-0.5 rounded-full font-mono">

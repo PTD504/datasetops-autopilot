@@ -189,7 +189,7 @@ export default function WorkflowEdge({
   );
 
   return (
-    <g className={`select-none transition-all duration-500 ${isDimmed ? "opacity-15 pointer-events-none filter blur-[0.5px]" : ""}`}>
+    <g className={`select-none transition-all duration-500 ${isDimmed ? "opacity-60" : ""}`}>
       {/* Outer Glowing Path (Cubic Bezier Neon Pipe) */}
       {(isActive || (edgeKey === "evaluator-generator" && repairsCount > 0)) && (
         <path

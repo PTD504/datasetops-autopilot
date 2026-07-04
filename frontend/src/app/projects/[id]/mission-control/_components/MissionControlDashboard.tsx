@@ -12,10 +12,10 @@ import TelemetryCluster, { TelemetryMetric } from "./TelemetryCluster";
 
 // Import new modular panel components
 import DirectedWorkflowGraph from "../../../../../components/mission-control/graph/DirectedWorkflowGraph";
-import InspectorPanel from "../../../../../components/mission-control/inspector/InspectorPanel";
 import TimelinePanel from "../../../../../components/mission-control/timeline/TimelinePanel";
 import ConsolePanel from "../../../../../components/mission-control/console/ConsolePanel";
 import WorkflowBanner from "../../../../../components/mission-control/WorkflowBanner";
+import ArtifactViewer from "../../../../../components/mission-control/ArtifactViewer/ArtifactViewer";
 import { 
   WorkflowStatus, 
   TraceItem, 
@@ -50,6 +50,8 @@ export default function MissionControlDashboard({
   const {
     demoMode,
     setDemoMode,
+    selectedNodeId,
+    setSelectedNodeId,
   } = useMissionControlStore();
 
   const [samplesCount, setSamplesCount] = useState(3);
@@ -191,11 +193,23 @@ export default function MissionControlDashboard({
             }
           />
         }
-        inspectorComponent={<InspectorPanel />}
         timelineComponent={<TimelinePanel traces={activeTraces} />}
         consoleComponent={<ConsolePanel rawTraces={activeRawTraces} />}
         telemetryComponent={<TelemetryCluster metrics={telemetryMetrics} title="Workflow Budget Guard & LLM Telemetry" />}
+        projectId={projectId}
+        workflowStatus={activeWorkflowStatus}
       />
+
+      {/* Full-Page Centered Workflow Artifact Viewer Workspace Overlay */}
+      {selectedNodeId && (
+        <ArtifactViewer
+          nodeId={selectedNodeId}
+          projectId={projectId}
+          workflowStatus={activeWorkflowStatus}
+          traces={activeTraces}
+          onClose={() => setSelectedNodeId(null)}
+        />
+      )}
     </div>
   );
 }

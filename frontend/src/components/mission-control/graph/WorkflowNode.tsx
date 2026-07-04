@@ -109,6 +109,54 @@ export default function WorkflowNode({
       onClick={onClick}
       className={`w-[130px] min-w-[130px] max-w-[130px] p-2.5 rounded-xl border backdrop-blur-sm cursor-pointer select-none transition-all duration-300 ease-out relative ${cardBorderClass} ${selectionClass} ${activePulse}`}
     >
+      {/* Visual Enhancements for Highlighted/Checkpoint Node */}
+      {isHighlighted && (
+        <>
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes MC-radar-pulse {
+              0% { transform: scale(0.92); opacity: 0.8; }
+              50% { opacity: 0.4; }
+              100% { transform: scale(1.15); opacity: 0; }
+            }
+            @keyframes MC-halo-breath {
+              0%, 100% { opacity: 0.15; transform: scale(0.95); }
+              50% { opacity: 0.35; transform: scale(1.05); }
+            }
+            @keyframes MC-orbit {
+              0% { transform: rotate(0deg) translateX(70px) rotate(0deg); }
+              100% { transform: rotate(360deg) translateX(70px) rotate(-360deg); }
+            }
+          ` }} />
+
+          {/* Concentric pulsing radar rings */}
+          <div 
+            className="absolute -inset-3 rounded-2xl border pointer-events-none animate-[MC-radar-pulse_2s_cubic-bezier(0.16,1,0.3,1)_infinite]"
+            style={{ borderColor: getAgentColorHex(node.id), borderWidth: "1.5px" }}
+          />
+          <div 
+            className="absolute -inset-6 rounded-3xl border pointer-events-none animate-[MC-radar-pulse_2s_cubic-bezier(0.16,1,0.3,1)_infinite_0.6s]"
+            style={{ borderColor: getAgentColorHex(node.id), borderWidth: "1px" }}
+          />
+
+          {/* Soft breathing spotlight/bloom effect in the background */}
+          <div 
+            className="absolute -inset-8 rounded-[40px] pointer-events-none filter blur-xl animate-[MC-halo-breath_3s_ease-in-out_infinite]"
+            style={{ 
+              background: `radial-gradient(circle, ${getAgentColorHex(node.id)}40 0%, transparent 70%)` 
+            }}
+          />
+
+          {/* Orbiting premium beacon particle */}
+          <div 
+            className="absolute left-[47%] top-[47%] w-2 h-2 rounded-full pointer-events-none animate-[MC-orbit_4s_linear_infinite]"
+            style={{ 
+              backgroundColor: getAgentColorHex(node.id),
+              boxShadow: `0 0 10px ${getAgentColorHex(node.id)}, 0 0 20px ${getAgentColorHex(node.id)}`
+            }}
+          />
+        </>
+      )}
+
       {/* Dynamic reticle for active running agents (skip for stage node to look flatter) */}
       {status === "Running" && !isStage && (
         <div 

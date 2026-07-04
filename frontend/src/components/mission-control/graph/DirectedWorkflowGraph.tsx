@@ -6,9 +6,7 @@ import { GRAPH_LAYOUT, GRAPH_EDGES } from "../config/graphLayout";
 import WorkflowNode, { NodeUiStatus } from "./WorkflowNode";
 import WorkflowEdge from "./WorkflowEdge";
 import { WorkflowStatus } from "../types";
-import InspectorPanel from "../inspector/InspectorPanel";
 import { getWorkflowDerivedState } from "../workflowStateHelpers";
-import HumanReviewOverlay from "../HumanReviewOverlay";
 
 interface DirectedWorkflowGraphProps {
   currentWorkflowStatus: WorkflowStatus;
@@ -406,7 +404,7 @@ export default function DirectedWorkflowGraph({
               key={node.id}
               id={`node-${node.id}`}
               className={`absolute pointer-events-auto transition-all duration-500 ${
-                isDimmed ? "opacity-25 filter blur-[0.5px] scale-95 pointer-events-none z-0" : ""
+                isDimmed ? "opacity-80 scale-95 z-0" : ""
               } ${isHighlighted ? "z-20" : "z-10"}`}
               style={{
                 left: `${pos.x}%`,
@@ -426,41 +424,6 @@ export default function DirectedWorkflowGraph({
           );
         })}
       </div>
-
-      {/* Floating lightweight human review overlay */}
-      <HumanReviewOverlay
-        projectId={projectId}
-        workflowStatus={currentWorkflowStatus}
-      />
-
-      {/* Contextual Floating Popover Node Inspector (z-30) */}
-      {selectedNodeId && popoverPos && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="absolute z-30 bg-[#07091e]/95 border border-white/[0.08] backdrop-blur-xl shadow-2xl rounded-2xl flex flex-col p-4 w-[280px] max-h-[250px] overflow-hidden pointer-events-auto select-text"
-          style={{
-            left: `${popoverPos.left}px`,
-            top: `${popoverPos.top}px`,
-            animation: "fadeInScale 0.18s ease-out forwards",
-            transformOrigin: "center center"
-          }}
-        >
-          <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-purple-500 to-rose-600 opacity-60"></div>
-          <div className="flex items-center justify-between border-b border-white/[0.08] pb-1.5 mb-2 shrink-0">
-            <h3 className="text-[10px] font-bold text-white uppercase tracking-wide">Node Inspector</h3>
-            <button 
-              onClick={() => setSelectedNodeId(null)}
-              className="p-1 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-slate-400 hover:text-white transition-all active:scale-95 cursor-pointer"
-              aria-label="Close Inspector"
-            >
-              <X size={10} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto hide-scrollbar pr-0.5 select-text">
-            <InspectorPanel />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
