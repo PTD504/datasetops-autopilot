@@ -7,20 +7,28 @@ import WorkflowNode, { NodeUiStatus } from "./WorkflowNode";
 import WorkflowEdge from "./WorkflowEdge";
 import { WorkflowStatus } from "../types";
 import InspectorPanel from "../inspector/InspectorPanel";
+import { getWorkflowDerivedState } from "../workflowStateHelpers";
+import HumanReviewOverlay from "../HumanReviewOverlay";
 
 interface DirectedWorkflowGraphProps {
   currentWorkflowStatus: WorkflowStatus;
   repairsCount?: number;
+  projectId: string;
 }
 
 export default function DirectedWorkflowGraph({ 
   currentWorkflowStatus,
-  repairsCount = 0
+  repairsCount = 0,
+  projectId
 }: DirectedWorkflowGraphProps) {
   const { 
     selectedNodeId, 
     setSelectedNodeId 
   } = useMissionControlStore();
+
+  const derivedState = getWorkflowDerivedState(currentWorkflowStatus, projectId);
+  const highlightedNodeId = derivedState.highlightedNodeId;
+  const shouldDimGraph = derivedState.shouldDimGraph;
 
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [nodePositions, setNodePositions] = React.useState<Record<string, { x: number; y: number; w: number; h: number }>>({});
@@ -366,6 +374,7 @@ export default function DirectedWorkflowGraph({
           const sPos = nodePositions[edge.source];
           const tPos = nodePositions[edge.target];
           const isActive = isEdgeActive(edge.source, edge.target);
+          const isEdgeDimmed = shouldDimGraph && edge.target !== highlightedNodeId;
 
           return (
             <WorkflowEdge
@@ -375,6 +384,7 @@ export default function DirectedWorkflowGraph({
               targetPos={tPos}
               isActive={isActive}
               repairsCount={repairsCount}
+              isDimmed={isEdgeDimmed}
             />
           );
         })}
@@ -388,12 +398,16 @@ export default function DirectedWorkflowGraph({
 
           const status = getNodeStatus(node.id, node.pipelineOrder);
           const isSelected = selectedNodeId === node.id;
+          const isHighlighted = highlightedNodeId === node.id;
+          const isDimmed = shouldDimGraph && !isHighlighted;
 
           return (
             <div
               key={node.id}
               id={`node-${node.id}`}
-              className="absolute pointer-events-auto"
+              className={`absolute pointer-events-auto transition-all duration-500 ${
+                isDimmed ? "opacity-25 filter blur-[0.5px] scale-95 pointer-events-none z-0" : ""
+              } ${isHighlighted ? "z-20" : "z-10"}`}
               style={{
                 left: `${pos.x}%`,
                 top: `${pos.y}%`,
@@ -404,12 +418,20 @@ export default function DirectedWorkflowGraph({
                 node={node}
                 status={status}
                 isSelected={isSelected}
+                isHighlighted={isHighlighted}
+                isDimmed={isDimmed}
                 onClick={() => setSelectedNodeId(selectedNodeId === node.id ? null : node.id)}
               />
             </div>
           );
         })}
       </div>
+
+      {/* Floating lightweight human review overlay */}
+      <HumanReviewOverlay
+        projectId={projectId}
+        workflowStatus={currentWorkflowStatus}
+      />
 
       {/* Contextual Floating Popover Node Inspector (z-30) */}
       {selectedNodeId && popoverPos && (

@@ -8,6 +8,7 @@ interface WorkflowEdgeProps {
   targetPos?: { x: number; y: number; w: number; h: number };
   isActive?: boolean;
   repairsCount?: number;
+  isDimmed?: boolean;
 }
 
 export default function WorkflowEdge({
@@ -16,6 +17,7 @@ export default function WorkflowEdge({
   targetPos,
   isActive = false,
   repairsCount = 0,
+  isDimmed = false,
 }: WorkflowEdgeProps) {
   // Safeguard if positions are not measured yet on the first frame
   if (!sourcePos || !targetPos) return null;
@@ -187,7 +189,7 @@ export default function WorkflowEdge({
   );
 
   return (
-    <g className="select-none">
+    <g className={`select-none transition-all duration-500 ${isDimmed ? "opacity-15 pointer-events-none filter blur-[0.5px]" : ""}`}>
       {/* Outer Glowing Path (Cubic Bezier Neon Pipe) */}
       {(isActive || (edgeKey === "evaluator-generator" && repairsCount > 0)) && (
         <path

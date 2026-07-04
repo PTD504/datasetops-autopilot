@@ -15,6 +15,8 @@ interface WorkflowNodeProps {
   node: AgentNodeConfig;
   status: NodeUiStatus;
   isSelected?: boolean;
+  isHighlighted?: boolean;
+  isDimmed?: boolean;
   onClick?: () => void;
 }
 
@@ -22,6 +24,8 @@ export default function WorkflowNode({
   node,
   status,
   isSelected = false,
+  isHighlighted = false,
+  isDimmed = false,
   onClick,
 }: WorkflowNodeProps) {
   const ui = AGENT_UI_CONFIGS[node.id];
@@ -71,7 +75,7 @@ export default function WorkflowNode({
   } else if (status === "Waiting") {
     statusDotBg = "bg-amber-400";
     statusDotPulse = "animate-pulse";
-    statusLabel = "HITL";
+    statusLabel = "WAITING REVIEW";
     cardBorderClass = "border-amber-500/40 ring-1 ring-amber-500/20 bg-amber-950/5 text-amber-100 shadow-[0_0_15px_rgba(245,158,11,0.15)] animate-pulse hover:border-amber-400 hover:shadow-[0_0_20px_rgba(245,158,11,0.3)] hover:-translate-y-0.5";
   } else if (status === "Repair Requested") {
     statusDotBg = "bg-rose-500";
@@ -82,6 +86,17 @@ export default function WorkflowNode({
     statusDotBg = "bg-rose-600";
     statusLabel = "Failed";
     cardBorderClass = "border-rose-500/40 bg-rose-950/20 text-rose-200 hover:-translate-y-0.5 hover:border-rose-550";
+  }
+
+  // Override border if highlighted (Checkpoint Glow)
+  if (isHighlighted) {
+    const glowColor = node.id === "intake_planner" ? "rgba(34,211,238,0.6)" : "rgba(251,113,133,0.6)";
+    const borderColor = node.id === "intake_planner" ? "border-cyan-400" : "border-rose-400";
+    const ringColor = node.id === "intake_planner" ? "ring-cyan-400/30" : "ring-rose-400/30";
+    const bgTheme = node.id === "intake_planner" ? "bg-cyan-950/15" : "bg-rose-950/15";
+    const textColor = node.id === "intake_planner" ? "text-cyan-100" : "text-rose-100";
+
+    cardBorderClass = `${borderColor} ring-2 ${ringColor} ${bgTheme} ${textColor} shadow-[0_0_30px_${glowColor}] animate-[pulse_2s_ease-in-out_infinite] scale-[1.05] hover:scale-[1.08] hover:-translate-y-1 transition-all duration-300`;
   }
 
   // Override border if selected

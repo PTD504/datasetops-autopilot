@@ -6,9 +6,6 @@ import {
   ArrowLeft, 
   Sparkles, 
   Square,
-  FileText,
-  FileSpreadsheet,
-  Download,
   Clock,
   RotateCcw
 } from "lucide-react";
@@ -163,30 +160,8 @@ export default function ControlHeader({
           </div>
         </div>
 
-        {/* Mode Selector, Shortcuts, and Controls */}
+        {/* Mode Selector and Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Shortcuts */}
-          <Link href={`/projects/${projectId}/plan`}>
-            <Button variant="outline" size="sm" className="rounded-xl border-white/5 bg-white/[0.02] hover:bg-white/[0.06] text-[10px] font-bold text-slate-300 flex items-center gap-1.5 h-8 px-2.5">
-              <FileText size={11} className="text-cyan-400" />
-              Plan Review
-            </Button>
-          </Link>
-          <Link href={`/projects/${projectId}/samples`}>
-            <Button variant="outline" size="sm" className="rounded-xl border-white/5 bg-white/[0.02] hover:bg-white/[0.06] text-[10px] font-bold text-slate-300 flex items-center gap-1.5 h-8 px-2.5">
-              <FileSpreadsheet size={11} className="text-amber-400" />
-              HITL Workbench
-            </Button>
-          </Link>
-          <Link href={`/projects/${projectId}/export`}>
-            <Button variant="outline" size="sm" className="rounded-xl border-white/5 bg-white/[0.02] hover:bg-white/[0.06] text-[10px] font-bold text-slate-300 flex items-center gap-1.5 h-8 px-2.5">
-              <Download size={11} className="text-emerald-400" />
-              Download Package
-            </Button>
-          </Link>
-
-          <div className="w-[1px] h-4 bg-white/10 mx-1 hidden sm:block"></div>
-
           <button
             onClick={onToggleDemoMode}
             className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold rounded-xl border transition-all h-8 ${

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useMissionControlStore } from "../../../../../components/mission-control/store/useMissionControlStore";
 import { 
   MOCK_USAGE_SUMMARY, 
@@ -15,6 +15,7 @@ import DirectedWorkflowGraph from "../../../../../components/mission-control/gra
 import InspectorPanel from "../../../../../components/mission-control/inspector/InspectorPanel";
 import TimelinePanel from "../../../../../components/mission-control/timeline/TimelinePanel";
 import ConsolePanel from "../../../../../components/mission-control/console/ConsolePanel";
+import WorkflowBanner from "../../../../../components/mission-control/WorkflowBanner";
 import { 
   WorkflowStatus, 
   TraceItem, 
@@ -51,6 +52,8 @@ export default function MissionControlDashboard({
     setDemoMode,
   } = useMissionControlStore();
 
+  const [samplesCount, setSamplesCount] = useState(3);
+
   const handleToggleDemoMode = () => {
     setDemoMode(!demoMode);
   };
@@ -60,6 +63,39 @@ export default function MissionControlDashboard({
   const activeTraces = demoMode ? MOCK_TRACE_ITEMS : traces;
   const activeRawTraces = demoMode ? MOCK_RAW_TRACES : rawTraces;
   const activeUsage = demoMode ? MOCK_USAGE_SUMMARY : usage;
+
+  // Poll for samples count when waiting for sample review
+  useEffect(() => {
+    if (demoMode) {
+      setSamplesCount(3); // In demo mode, use a static mock count of 3
+      return;
+    }
+
+    if (activeWorkflowStatus !== "WAITING_FOR_SAMPLE_REVIEW") return;
+
+    let active = true;
+    const fetchSamples = async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples`);
+        if (res.ok && active) {
+          const data = await res.json();
+          // Count samples that need human review (or are not approved)
+          const pendingCount = data.filter((s: any) => s.status === "HUMAN_REVIEW" || s.status === "NEEDS_REVIEW" || s.status === "PENDING").length;
+          setSamplesCount(pendingCount > 0 ? pendingCount : (data.length > 0 ? data.length : 3));
+        }
+      } catch (e) {
+        console.error("Failed to fetch samples count", e);
+      }
+    };
+
+    fetchSamples();
+    const interval = setInterval(fetchSamples, 3000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [projectId, activeWorkflowStatus, demoMode]);
 
   const handleStopWorkflow = () => {
     if (demoMode) {
@@ -135,11 +171,19 @@ export default function MissionControlDashboard({
         onStopWorkflow={handleStopWorkflow}
       />
 
+      {/* Contextual Workflow Banner */}
+      <WorkflowBanner
+        projectId={projectId}
+        workflowStatus={activeWorkflowStatus}
+        sampleReviewCount={samplesCount}
+      />
+
       {/* Grid Dashboard Layout */}
       <WorkspaceGrid
         graphComponent={
           <DirectedWorkflowGraph 
             currentWorkflowStatus={activeWorkflowStatus} 
+            projectId={projectId}
             repairsCount={
               demoMode
                 ? (["EVALUATING", "REPAIRING", "WAITING_FOR_SAMPLE_REVIEW", "EXPORTING", "EXPORT_READY", "DONE"].includes(activeWorkflowStatus) ? 2 : 0)
