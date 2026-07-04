@@ -11,14 +11,16 @@ export interface GraphEdgeConfig {
   isCurved?: boolean; // true for the repair loop
   isReverse?: boolean; // true for evaluator -> generator
   artifactType?: string; // Mapped to backend artifacts
+  sourceAnchor?: string | number;
+  targetAnchor?: string | number;
 }
 
 export const GRAPH_LAYOUT: Record<string, NodeLayoutPosition> = {
   preprocessing: { x: 8, y: 25 },
   source_understanding: { x: 24, y: 65 },
   intake_planner: { x: 40, y: 25 },
-  generator: { x: 58, y: 48 },
-  evaluator: { x: 76, y: 48 },
+  generator: { x: 55, y: 65 },
+  evaluator: { x: 77, y: 65 },
   exporter: { x: 90, y: 25 }
 };
 
@@ -49,7 +51,9 @@ export const GRAPH_EDGES: GraphEdgeConfig[] = [
     source: "generator",
     target: "evaluator",
     label: "Benchmark Samples",
-    artifactType: "generated_samples"
+    artifactType: "generated_samples",
+    sourceAnchor: 350,
+    targetAnchor: 190
   },
   {
     id: "evaluator_to_generator_repair",
@@ -58,7 +62,9 @@ export const GRAPH_EDGES: GraphEdgeConfig[] = [
     label: "Repair Instruction",
     isCurved: true,
     isReverse: true,
-    artifactType: "RepairInstruction"
+    artifactType: "RepairInstruction",
+    sourceAnchor: 170,
+    targetAnchor: 10
   },
   {
     id: "evaluator_to_exporter",

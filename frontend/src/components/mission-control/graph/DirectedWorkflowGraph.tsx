@@ -10,9 +10,13 @@ import InspectorPanel from "../inspector/InspectorPanel";
 
 interface DirectedWorkflowGraphProps {
   currentWorkflowStatus: WorkflowStatus;
+  repairsCount?: number;
 }
 
-export default function DirectedWorkflowGraph({ currentWorkflowStatus }: DirectedWorkflowGraphProps) {
+export default function DirectedWorkflowGraph({ 
+  currentWorkflowStatus,
+  repairsCount = 0
+}: DirectedWorkflowGraphProps) {
   const { 
     selectedNodeId, 
     setSelectedNodeId 
@@ -288,7 +292,7 @@ export default function DirectedWorkflowGraph({ currentWorkflowStatus }: Directe
             markerHeight="6"
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 10 5 L 0 10 z" className="fill-slate-550/70" />
+            <path d="M 0 0 L 10 5 L 0 10 z" className="fill-slate-500/70" />
           </marker>
 
           {/* Active indigo arrow marker */}
@@ -316,6 +320,45 @@ export default function DirectedWorkflowGraph({ currentWorkflowStatus }: Directe
           >
             <path d="M 0 0 L 10 5 L 0 10 z" className="fill-rose-400" />
           </marker>
+
+          {/* Active orange arrow marker */}
+          <marker
+            id="arrow-orange"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="6.5"
+            markerHeight="6.5"
+            orient="auto"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" className="fill-orange-500" />
+          </marker>
+
+          {/* Active amber arrow marker */}
+          <marker
+            id="arrow-amber"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="6.5"
+            markerHeight="6.5"
+            orient="auto"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" className="fill-amber-500" />
+          </marker>
+
+          {/* Inactive repair loop arrow marker */}
+          <marker
+            id="arrow-rose-dim"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" className="fill-amber-500/20" />
+          </marker>
         </defs>
 
         {/* Map connection lines */}
@@ -331,6 +374,7 @@ export default function DirectedWorkflowGraph({ currentWorkflowStatus }: Directe
               sourcePos={sPos}
               targetPos={tPos}
               isActive={isActive}
+              repairsCount={repairsCount}
             />
           );
         })}

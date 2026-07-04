@@ -137,7 +137,16 @@ export default function MissionControlDashboard({
 
       {/* Grid Dashboard Layout */}
       <WorkspaceGrid
-        graphComponent={<DirectedWorkflowGraph currentWorkflowStatus={activeWorkflowStatus} />}
+        graphComponent={
+          <DirectedWorkflowGraph 
+            currentWorkflowStatus={activeWorkflowStatus} 
+            repairsCount={
+              demoMode
+                ? (["EVALUATING", "REPAIRING", "WAITING_FOR_SAMPLE_REVIEW", "EXPORTING", "EXPORT_READY", "DONE"].includes(activeWorkflowStatus) ? 2 : 0)
+                : (traces?.filter(t => t.action === "start_generation_repair" || t.action === "repair").length || 0)
+            }
+          />
+        }
         inspectorComponent={<InspectorPanel />}
         timelineComponent={<TimelinePanel traces={activeTraces} />}
         consoleComponent={<ConsolePanel rawTraces={activeRawTraces} />}
