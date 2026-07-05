@@ -455,8 +455,55 @@ def test_unanswerable_decision_routing_regression():
 
     db.close()
 
+def test_separate_models():
+    from backend.core.config import settings
+    
+    # Backup original values
+    orig_gen = settings.GENERATOR_MODEL
+    orig_eval = settings.EVALUATOR_MODEL
+    orig_qwen = settings.QWEN_MODEL
+    
+    try:
+        # 1. Override the models in settings
+        settings.GENERATOR_MODEL = "qwen-generator-test-model"
+        settings.EVALUATOR_MODEL = "qwen-evaluator-test-model"
+        
+        # 2. Check the properties resolve correctly
+        assert settings.generator_model_name == "qwen-generator-test-model"
+        assert settings.evaluator_model_name == "qwen-evaluator-test-model"
+        
+        # 3. Instantiate the agents and check self.llm.model
+        db = SessionLocal()
+        project_id = str(uuid.uuid4())
+        
+        generator = BenchmarkGeneratorAgent(db, project_id)
+        evaluator = QualityEvaluatorAgent(db, project_id)
+        
+        assert generator.llm.model == "qwen-generator-test-model"
+        assert evaluator.llm.model == "qwen-evaluator-test-model"
+        
+        # 4. If we set them to None, they should fallback to settings.QWEN_MODEL
+        settings.GENERATOR_MODEL = None
+        settings.EVALUATOR_MODEL = None
+        settings.QWEN_MODEL = "fallback-qwen-model"
+        
+        generator_fallback = BenchmarkGeneratorAgent(db, project_id)
+        evaluator_fallback = QualityEvaluatorAgent(db, project_id)
+        
+        assert generator_fallback.llm.model == "fallback-qwen-model"
+        assert evaluator_fallback.llm.model == "fallback-qwen-model"
+        
+        db.close()
+        print("Separate models test passed")
+    finally:
+        # Restore original values
+        settings.GENERATOR_MODEL = orig_gen
+        settings.EVALUATOR_MODEL = orig_eval
+        settings.QWEN_MODEL = orig_qwen
+
 
 if __name__ == "__main__":
     test_pipeline()
     test_unanswerable_sample_passes()
     test_unanswerable_decision_routing_regression()
+    test_separate_models()

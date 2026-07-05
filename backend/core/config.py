@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     QWEN_API_KEY: Optional[str] = None
     QWEN_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     QWEN_MODEL: str = "qwen-plus"
+    GENERATOR_MODEL: Optional[str] = None
+    EVALUATOR_MODEL: Optional[str] = None
 
     ALIBABA_CLOUD_ACCESS_KEY_ID: Optional[str] = None
     ALIBABA_CLOUD_ACCESS_KEY_SECRET: Optional[str] = None
@@ -49,6 +51,14 @@ class Settings(BaseSettings):
         if mode not in {"cap", "strict", "warn"}:
             raise ValueError("BUDGET_GUARDRAIL_MODE must be one of: 'cap', 'strict', 'warn'")
         return mode
+
+    @property
+    def generator_model_name(self) -> str:
+        return self.GENERATOR_MODEL or self.QWEN_MODEL
+
+    @property
+    def evaluator_model_name(self) -> str:
+        return self.EVALUATOR_MODEL or self.QWEN_MODEL
 
     @property
     def max_samples_per_run_limit(self) -> int:

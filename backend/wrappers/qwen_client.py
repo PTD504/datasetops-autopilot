@@ -11,14 +11,14 @@ from backend.services.errors import sanitize_error_message
 logger = logging.getLogger(__name__)
 
 class QwenClient:
-    def __init__(self, project_id: str = None, agent_name: str = "UnknownAgent", db: Session = None):
+    def __init__(self, project_id: str = None, agent_name: str = "UnknownAgent", db: Session = None, model: Optional[str] = None):
         self.use_mock = settings.effective_mock_llm or not settings.QWEN_API_KEY
         self.project_id = project_id
         self.agent_name = agent_name
         self.db = db
         self.budget_guard = LLMBudgetGuard(db, project_id) if (db and project_id) else None
 
-        self.model = settings.QWEN_MODEL
+        self.model = model or settings.QWEN_MODEL
         if not self.use_mock:
             self.client = OpenAI(
                 api_key=settings.QWEN_API_KEY,

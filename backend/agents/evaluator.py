@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session
 from .base import BaseAgent
 from backend.models import Sample, Evaluation, Chunk
 from backend.models.enums import SampleStatus
+from backend.core.config import settings
 
 class QualityEvaluatorAgent(BaseAgent):
     FAITHFULNESS_PASS_THRESHOLD = 0.85
     FAITHFULNESS_REJECT_THRESHOLD = 0.50
 
     def __init__(self, db: Session, project_id: str):
-        super().__init__(db, project_id)
+        super().__init__(db, project_id, model=settings.evaluator_model_name)
         self.purpose = "Evaluate generated samples and decide if they pass, need repair, or review."
 
     def evaluate(self, sample: Sample, existing_questions: list = None, existing_chunk_combos: list = None) -> Tuple[Evaluation, bool]:

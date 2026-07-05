@@ -5,10 +5,11 @@ from backend.models import BenchmarkPlan, Sample
 from backend.pipeline.retriever import NaiveRetriever, SemanticRetriever
 from backend.models.enums import SampleStatus
 from backend.tools.evidence_assembler import EvidenceAssemblerTool
+from backend.core.config import settings
 
 class BenchmarkGeneratorAgent(BaseAgent):
     def __init__(self, db: Session, project_id: str):
-        super().__init__(db, project_id)
+        super().__init__(db, project_id, model=settings.generator_model_name)
         self.purpose = "Generate benchmark samples based on the plan and source documents."
         self.retriever = SemanticRetriever(db)
         self._samples = []
