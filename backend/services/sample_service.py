@@ -60,7 +60,16 @@ def get_samples(db: Session, project_id: str, status: str = None) -> List[Dict[s
             "hallucination_risk_score": latest_eval.hallucination_risk_score if latest_eval else None,
             "issues": latest_eval.issues if latest_eval else [],
             "evidence": evidence,
-            "evidence_unavailable": evidence_unavailable or (len(evidence) == 0)
+            "evidence_unavailable": evidence_unavailable or (len(evidence) == 0),
+            "retry_count": s.retry_count,
+            "evaluator_notes": latest_eval.evaluator_notes if latest_eval else None,
+            "repair_instruction": latest_eval.repair_instruction if latest_eval else None,
+            "novelty_score": latest_eval.novelty_score if latest_eval else None,
+            "context_precision_score": latest_eval.context_precision_score if latest_eval else None,
+            "context_recall_score": latest_eval.context_recall_score if latest_eval else None,
+            "clarity_score": latest_eval.clarity_score if latest_eval else None,
+            "difficulty_match_score": latest_eval.difficulty_match_score if latest_eval else None,
+            "answerability_score": latest_eval.answerability_score if latest_eval else None
         }
         results.append(s_dict)
 

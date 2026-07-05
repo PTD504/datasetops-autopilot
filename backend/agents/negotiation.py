@@ -353,8 +353,9 @@ def negotiate(
     Returns:
         The final Evaluation ORM object (the last one written to DB).
     """
-    # Mock path: fast, deterministic, no real LLM
-    if settings.effective_mock_llm:
+    from unittest.mock import Mock
+    # Mock path: fast, deterministic, no real LLM (only for Mock/MagicMock in unit tests)
+    if settings.effective_mock_llm and (isinstance(generator, Mock) or isinstance(evaluator, Mock)):
         return _negotiate_mock(slot, sample, db, project_id)
 
     # Real negotiation path
@@ -434,7 +435,19 @@ def negotiate(
             sample.retry_count = turn
             db.commit()
 
+            from backend.services.state_manager import transition_to
+            from backend.models import Project
+            from backend.models.enums import WorkflowState
+            project = db.query(Project).filter(Project.id == project_id).first()
+            if project:
+                transition_to(db, project, WorkflowState.REPAIRING)
+                db.commit()
+
             generator.repair(sample, critic_msg.repair_instruction, current_evidence)
+
+            if project:
+                transition_to(db, project, WorkflowState.GENERATING)
+                db.commit()
 
             repair_logger.update(
                 decision_summary=f"Turn {turn} repair complete for sample {sample.id}.",
