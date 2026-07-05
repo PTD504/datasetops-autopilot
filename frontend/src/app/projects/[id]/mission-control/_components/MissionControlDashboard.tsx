@@ -160,6 +160,15 @@ export default function MissionControlDashboard({
     },
   ] : [];
 
+  // Derive repair count based on traces or demoMode
+  const repairsCount = demoMode
+    ? (["EVALUATING", "REPAIRING", "WAITING_FOR_SAMPLE_REVIEW", "EXPORTING", "EXPORT_READY", "DONE"].includes(activeWorkflowStatus) ? 2 : 0)
+    : activeTraces
+        .filter((t) => t.type === "agent_run")
+        .map((t) => t.data as any)
+        .filter((run) => run.agent_name === "BenchmarkGeneratorAgent" && run.input_summary?.toLowerCase().includes("repairing"))
+        .length;
+
   return (
     <div className="flex flex-col gap-6 py-4">
       {/* Control Header */}
@@ -171,6 +180,7 @@ export default function MissionControlDashboard({
         cancelRequested={activeUsage?.cancel_requested}
         onToggleDemoMode={handleToggleDemoMode}
         onStopWorkflow={handleStopWorkflow}
+        repairsCount={repairsCount}
       />
 
       {/* Contextual Workflow Banner */}
@@ -186,11 +196,8 @@ export default function MissionControlDashboard({
           <DirectedWorkflowGraph 
             currentWorkflowStatus={activeWorkflowStatus} 
             projectId={projectId}
-            repairsCount={
-              demoMode
-                ? (["EVALUATING", "REPAIRING", "WAITING_FOR_SAMPLE_REVIEW", "EXPORTING", "EXPORT_READY", "DONE"].includes(activeWorkflowStatus) ? 2 : 0)
-                : (traces?.filter(t => t.action === "start_generation_repair" || t.action === "repair").length || 0)
-            }
+            repairsCount={repairsCount}
+            traces={activeTraces}
           />
         }
         timelineComponent={<TimelinePanel traces={activeTraces} />}

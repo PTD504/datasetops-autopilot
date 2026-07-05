@@ -19,6 +19,7 @@ interface ControlHeaderProps {
   cancelRequested?: boolean;
   onToggleDemoMode: () => void;
   onStopWorkflow: () => void;
+  repairsCount?: number;
 }
 
 export default function ControlHeader({
@@ -29,6 +30,7 @@ export default function ControlHeader({
   cancelRequested = false,
   onToggleDemoMode,
   onStopWorkflow,
+  repairsCount,
 }: ControlHeaderProps) {
   
   // Define all possible states in chronological order to calculate progress
@@ -112,10 +114,10 @@ export default function ControlHeader({
   const currentAgentName = getActiveAgent(workflowStatus);
   const agentColorClass = getAgentColorClass(workflowStatus);
 
-  // Deriving mock repair count based on state
-  const mockRepairCount = ["EVALUATING", "REPAIRING", "WAITING_FOR_SAMPLE_REVIEW", "EXPORTING", "EXPORT_READY", "DONE"].includes(workflowStatus)
-    ? 2 
-    : 0;
+  // Deriving repair count
+  const activeRepairsCount = repairsCount !== undefined
+    ? repairsCount
+    : (["EVALUATING", "REPAIRING", "WAITING_FOR_SAMPLE_REVIEW", "EXPORTING", "EXPORT_READY", "DONE"].includes(workflowStatus) ? 2 : 0);
 
   // Determine status color badge
   let statusBadgeColor = "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
@@ -226,8 +228,8 @@ export default function ControlHeader({
           <div className="flex items-center gap-1">
             <RotateCcw size={10} className="text-slate-550" />
             <span className="text-slate-500 font-bold uppercase text-[8px] tracking-wider">Repairs:</span>
-            <span className={`font-mono font-bold ${mockRepairCount > 0 ? "text-amber-400" : "text-slate-400"}`}>
-              {mockRepairCount}
+            <span className={`font-mono font-bold ${activeRepairsCount > 0 ? "text-amber-400" : "text-slate-400"}`}>
+              {activeRepairsCount}
             </span>
           </div>
         </div>

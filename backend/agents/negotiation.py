@@ -440,13 +440,23 @@ def negotiate(
             from backend.models.enums import WorkflowState
             project = db.query(Project).filter(Project.id == project_id).first()
             if project:
-                transition_to(db, project, WorkflowState.REPAIRING)
+                transition_to(
+                    db,
+                    project,
+                    WorkflowState.REPAIRING,
+                    f"Repair loop initiated for sample {sample.id} (Turn {turn})."
+                )
                 db.commit()
 
             generator.repair(sample, critic_msg.repair_instruction, current_evidence)
 
             if project:
-                transition_to(db, project, WorkflowState.GENERATING)
+                transition_to(
+                    db,
+                    project,
+                    WorkflowState.GENERATING,
+                    f"Repair complete for sample {sample.id}. Resuming generation."
+                )
                 db.commit()
 
             repair_logger.update(

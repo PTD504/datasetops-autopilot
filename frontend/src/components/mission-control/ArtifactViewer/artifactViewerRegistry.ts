@@ -2,8 +2,8 @@ import React from "react";
 import DataProcessingViewer from "./viewers/DataProcessingViewer";
 import SourceUnderstandingViewer from "./viewers/SourceUnderstandingViewer";
 import IntakePlannerViewer from "./viewers/IntakePlannerViewer";
-import GeneratorViewer from "./viewers/GeneratorViewer";
-import EvaluatorViewer from "./viewers/EvaluatorViewer";
+import GeneratorViewer from "./viewers/GeneratorViewer/GeneratorViewer";
+import EvaluatorViewer from "./viewers/EvaluatorViewer/EvaluatorViewer";
 import ExportViewer from "./viewers/ExportViewer";
 
 const REGISTRY: Record<string, React.ComponentType<any>> = {

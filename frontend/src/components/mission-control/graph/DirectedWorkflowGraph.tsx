@@ -5,27 +5,65 @@ import { AGENT_NODES } from "../config/agentConfig";
 import { GRAPH_LAYOUT, GRAPH_EDGES } from "../config/graphLayout";
 import WorkflowNode, { NodeUiStatus } from "./WorkflowNode";
 import WorkflowEdge from "./WorkflowEdge";
-import { WorkflowStatus } from "../types";
+import { WorkflowStatus, TraceItem } from "../types";
 import { getWorkflowDerivedState } from "../workflowStateHelpers";
 
 interface DirectedWorkflowGraphProps {
   currentWorkflowStatus: WorkflowStatus;
   repairsCount?: number;
   projectId: string;
+  traces: TraceItem[];
 }
 
 export default function DirectedWorkflowGraph({ 
   currentWorkflowStatus,
   repairsCount = 0,
-  projectId
+  projectId,
+  traces
 }: DirectedWorkflowGraphProps) {
   const { 
     selectedNodeId, 
     setSelectedNodeId 
   } = useMissionControlStore();
 
+  const [hasEvaluated, setHasEvaluated] = React.useState(false);
+
+  React.useEffect(() => {
+    if (hasEvaluated) return;
+    const hasEvalRun = traces.some(
+      (t) => t.type === "agent_run" && (t.data as any).agent_name === "QualityEvaluatorAgent"
+    );
+    if (hasEvalRun) {
+      setHasEvaluated(true);
+    }
+  }, [traces, hasEvaluated]);
+
+  const getActiveAgentInCooperation = () => {
+    const agentRuns = traces.filter((t) => t.type === "agent_run");
+    const latestAgentRun = agentRuns.length > 0 ? agentRuns[agentRuns.length - 1] : null;
+    if (latestAgentRun) {
+      return (latestAgentRun.data as any).agent_name;
+    }
+    return "BenchmarkGeneratorAgent"; // Fallback to Generator at start
+  };
+
+  const activeAgentInCooperation = getActiveAgentInCooperation();
+
   const derivedState = getWorkflowDerivedState(currentWorkflowStatus, projectId);
   const highlightedNodeId = derivedState.highlightedNodeId;
+
+  let graphHighlightedNodeId = highlightedNodeId;
+  if (
+    hasEvaluated &&
+    ["GENERATING", "VALIDATING", "EVALUATING", "REPAIRING"].includes(currentWorkflowStatus)
+  ) {
+    if (activeAgentInCooperation === "QualityEvaluatorAgent") {
+      graphHighlightedNodeId = "evaluator";
+    } else if (activeAgentInCooperation === "BenchmarkGeneratorAgent") {
+      graphHighlightedNodeId = "generator";
+    }
+  }
+
   const shouldDimGraph = derivedState.shouldDimGraph;
 
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -110,7 +148,28 @@ export default function DirectedWorkflowGraph({
       return nodeOrder < (activeNode?.pipelineOrder || 0) ? "Completed" : "Pending";
     }
 
-    // 3. Current active state checking
+    // 3. Cooperation state checking (taking turns)
+    if (
+      ["GENERATING", "VALIDATING", "EVALUATING", "REPAIRING"].includes(currentWorkflowStatus)
+    ) {
+      if (nodeId === "generator") {
+        if (activeAgentInCooperation === "BenchmarkGeneratorAgent") {
+          return "Running";
+        }
+        return "Completed";
+      }
+      if (nodeId === "evaluator") {
+        if (activeAgentInCooperation === "QualityEvaluatorAgent") {
+          if (currentWorkflowStatus === "REPAIRING") {
+            return "Repair Requested";
+          }
+          return "Running";
+        }
+        return hasEvaluated ? "Completed" : "Pending";
+      }
+    }
+
+    // 4. Current active state checking
     const isActive = AGENT_NODES.find((n) => n.id === nodeId)?.workflowStates.includes(currentWorkflowStatus);
     if (isActive) {
       if (currentWorkflowStatus.startsWith("WAITING_")) {
@@ -122,7 +181,7 @@ export default function DirectedWorkflowGraph({
       return "Running";
     }
 
-    // 4. Fallback checking order
+    // 5. Fallback checking order
     if (nodeOrder < activeOrder) {
       return "Completed";
     }
@@ -134,6 +193,13 @@ export default function DirectedWorkflowGraph({
     // 1. Specific condition for the repair loop evaluator -> generator
     if (sourceId === "evaluator" && targetId === "generator") {
       return currentWorkflowStatus === "REPAIRING";
+    }
+
+    // 2. Specific condition for generator -> evaluator during cooperation (keep flowing once started)
+    if (sourceId === "generator" && targetId === "evaluator") {
+      if (hasEvaluated && ["GENERATING", "VALIDATING", "EVALUATING", "REPAIRING", "WAITING_FOR_SAMPLE_REVIEW"].includes(currentWorkflowStatus)) {
+        return true;
+      }
     }
 
     const sourceNode = AGENT_NODES.find((n) => n.id === sourceId);
@@ -383,6 +449,7 @@ export default function DirectedWorkflowGraph({
               isActive={isActive}
               repairsCount={repairsCount}
               isDimmed={isEdgeDimmed}
+              currentWorkflowStatus={currentWorkflowStatus}
             />
           );
         })}
@@ -396,7 +463,7 @@ export default function DirectedWorkflowGraph({
 
           const status = getNodeStatus(node.id, node.pipelineOrder);
           const isSelected = selectedNodeId === node.id;
-          const isHighlighted = highlightedNodeId === node.id;
+          const isHighlighted = graphHighlightedNodeId === node.id;
           const isDimmed = shouldDimGraph && !isHighlighted;
 
           return (

@@ -9,6 +9,7 @@ interface WorkflowEdgeProps {
   isActive?: boolean;
   repairsCount?: number;
   isDimmed?: boolean;
+  currentWorkflowStatus?: string;
 }
 
 export default function WorkflowEdge({
@@ -18,6 +19,7 @@ export default function WorkflowEdge({
   isActive = false,
   repairsCount = 0,
   isDimmed = false,
+  currentWorkflowStatus,
 }: WorkflowEdgeProps) {
   // Safeguard if positions are not measured yet on the first frame
   if (!sourcePos || !targetPos) return null;
@@ -61,13 +63,12 @@ export default function WorkflowEdge({
 
   const dx = endX - startX;
   const dy = endY - startY;
-  const spanX = Math.abs(dx);
 
   // 3. Resolve exit and entry angles (in degrees) to compute Bezier control points
   let exitAngle = 0;
   let entryAngleOpposite = 180;
-  let d1 = spanX * 0.4;
-  let d2 = spanX * 0.4;
+  let d1 = 0;
+  let d2 = 0;
 
   if (edgeKey === "generator-evaluator") {
     // Top negotiation curve wrapping over:
@@ -111,12 +112,11 @@ export default function WorkflowEdge({
 
   // 4. Determine colors, styles, and weights based on edge types
   let pathColorClass = "stroke-slate-700/25";
-  let textColorClass = "fill-slate-500 font-medium";
+  let textColorClass = "fill-slate-550 font-medium";
   let strokeWidth = 0.9;
-  let glowColorClass = "stroke-indigo-500/20";
+  let glowColorClass = "stroke-indigo-500/0";
   let dashColorClass = "stroke-indigo-300";
-  let arrowColor = "rgb(71, 85, 105)"; // slate-600
-
+  let arrowColor = "rgba(255, 255, 255, 0.15)";
 
   if (edgeKey === "generator-evaluator") {
     if (isActive) {
@@ -188,6 +188,13 @@ export default function WorkflowEdge({
     </g>
   );
 
+  // Animation and flow logic
+  const isDashedFlowActive = isActive || (edgeKey === "evaluator-generator" && repairsCount > 0);
+  const showForwardPackets = isActive && edgeKey === "generator-evaluator" && (
+    currentWorkflowStatus !== undefined && ["GENERATING", "VALIDATING", "EVALUATING", "REPAIRING"].includes(currentWorkflowStatus)
+  );
+  const showReversePackets = isActive && edgeKey === "evaluator-generator";
+
   return (
     <g className={`select-none transition-all duration-500 ${isDimmed ? "opacity-60" : ""}`}>
       {/* Outer Glowing Path (Cubic Bezier Neon Pipe) */}
@@ -209,7 +216,7 @@ export default function WorkflowEdge({
       />
 
       {/* Active dashed flow overlay */}
-      {isActive && (
+      {isDashedFlowActive && (
         <path
           d={pathD}
           fill="none"
@@ -223,7 +230,7 @@ export default function WorkflowEdge({
       {arrowhead}
 
       {/* Travelling payload animations (Packets) */}
-      {isActive && edgeKey === "generator-evaluator" && (
+      {showForwardPackets && (
         <>
           <circle r="4" fill="#818cf8" className="filter drop-shadow-[0_0_3px_#818cf8]">
             <animateMotion dur="3s" repeatCount="indefinite" path={pathD} begin="0s" />
@@ -237,7 +244,7 @@ export default function WorkflowEdge({
         </>
       )}
 
-      {isActive && edgeKey === "evaluator-generator" && (
+      {showReversePackets && (
         <>
           <circle r="4" fill="#f97316" className="filter drop-shadow-[0_0_3px_#f97316]">
             <animateMotion dur="3s" repeatCount="indefinite" path={pathD} begin="0s" />
@@ -252,7 +259,7 @@ export default function WorkflowEdge({
       )}
 
       {/* Connection Label (Only active to avoid floating orphans) */}
-      {edge.label && isActive && (
+      {edge.label && (isActive || (edgeKey === "evaluator-generator" && repairsCount > 0)) && (
         <g>
           {/* Label backdrop mask */}
           <text

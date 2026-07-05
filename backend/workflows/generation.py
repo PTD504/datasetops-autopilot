@@ -187,7 +187,7 @@ def run_generation_workflow(project_id: str):
         passed_count = len([s for s in samples if s.status == SampleStatus.APPROVED])
         human_review_count = len([s for s in samples if s.status == SampleStatus.HUMAN_REVIEW])
         rejected_count = len([s for s in samples if s.status == SampleStatus.REJECTED])
-        repairing_count = len([s for s in samples if s.status == SampleStatus.REPAIRING])
+        repairing_count = len([s for s in samples if s.retry_count > 0 or s.status == SampleStatus.REPAIRING])
         
         all_issues = []
         for e in evals:

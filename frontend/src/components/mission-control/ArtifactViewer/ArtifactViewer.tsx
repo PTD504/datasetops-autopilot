@@ -24,6 +24,15 @@ export default function ArtifactViewer({
 }: ArtifactViewerProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
 
+  // Lock body scroll when workspace is open
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, []);
+
   // Close on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -74,33 +83,41 @@ export default function ArtifactViewer({
   const nodeRuns = getAgentRunsForNode();
   const latestRun = nodeRuns.length > 0 ? nodeRuns[nodeRuns.length - 1] : null;
 
-  // 1. Calculate duration from timestamps
+  // 1. Calculate duration from all runs matching the node
   let durationText = "N/A";
-  if (latestRun) {
-    const start = new Date(latestRun.started_at);
-    const end = latestRun.completed_at ? new Date(latestRun.completed_at) : new Date();
-    const diffSec = Math.floor((end.getTime() - start.getTime()) / 1000);
-    if (diffSec < 60) {
-      durationText = `${diffSec}s`;
+  if (nodeRuns.length > 0) {
+    let totalDurationSec = 0;
+    nodeRuns.forEach((run) => {
+      const start = new Date(run.started_at);
+      const end = run.completed_at ? new Date(run.completed_at) : new Date();
+      totalDurationSec += Math.floor((end.getTime() - start.getTime()) / 1000);
+    });
+
+    if (totalDurationSec < 60) {
+      durationText = `${totalDurationSec}s`;
     } else {
-      const mins = Math.floor(diffSec / 60);
-      const secs = diffSec % 60;
+      const mins = Math.floor(totalDurationSec / 60);
+      const secs = totalDurationSec % 60;
       durationText = `${mins}m ${secs}s`;
     }
   }
 
-  // 2. Count LLM calls from tool calls
+  // 2. Count LLM calls from tool calls of all matching runs
   let llmCalls = 0;
-  if (latestRun) {
-    const apiCalls = latestRun.tool_calls || [];
-    // Count tool calls starting with QwenClient or general API calls
-    llmCalls = apiCalls.filter(
-      (tc) => tc.tool_name.toLowerCase().includes("qwen") || tc.tool_name.toLowerCase().includes("client")
-    ).length;
-    // Fallback if tool_calls array isn't populated but output indicates completion
-    if (llmCalls === 0 && latestRun.status === "completed") {
-      llmCalls = nodeId === "preprocessing" ? 0 : 1; // Preprocessing is non-LLM, others use at least 1 call
-    }
+  if (nodeRuns.length > 0) {
+    nodeRuns.forEach((run) => {
+      const apiCalls = run.tool_calls || [];
+      // Count tool calls starting with QwenClient or general API calls
+      let runLlmCalls = apiCalls.filter(
+        (tc) => tc.tool_name.toLowerCase().includes("qwen") || tc.tool_name.toLowerCase().includes("client")
+      ).length;
+      
+      // Fallback if tool_calls array isn't populated but output indicates completion
+      if (runLlmCalls === 0 && run.status === "completed") {
+        runLlmCalls = nodeId === "preprocessing" ? 0 : 1; // Preprocessing is non-LLM, others use at least 1 call
+      }
+      llmCalls += runLlmCalls;
+    });
   }
 
   // 3. Resolve badge variant matching status
@@ -141,11 +158,26 @@ export default function ArtifactViewer({
           from { opacity: 0; transform: scale(0.97); }
           to { opacity: 1; transform: scale(1); }
         }
+        .custom-workspace-scroll::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .custom-workspace-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-workspace-scroll::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.08);
+          border-radius: 9999px;
+          border: 1px solid transparent;
+        }
+        .custom-workspace-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.15);
+        }
       ` }} />
 
       {/* Large Modal Container */}
       <div 
-        className="bg-[#07091e]/90 border border-white/[0.08] backdrop-blur-xl shadow-2xl rounded-3xl w-full h-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden pointer-events-auto animate-[MCScaleIn_0.22s_ease-out_forwards] relative"
+        className="bg-gradient-to-b from-[#090d2e]/95 to-[#05071a]/95 border border-white/[0.08] backdrop-blur-xl shadow-[0_0_50px_-12px_rgba(99,102,241,0.15)] rounded-3xl w-full h-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden pointer-events-auto animate-[MCScaleIn_0.22s_ease-out_forwards] relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left colored border stripe accent */}
@@ -187,10 +219,14 @@ export default function ArtifactViewer({
         </div>
 
         {/* Body Section */}
-        <div className="flex-1 overflow-y-auto p-5 md:p-6 relative z-10 select-text">
+        <div className="flex-1 overflow-y-auto p-5 md:p-6 relative z-10 select-text custom-workspace-scroll">
           {latestRun || node.workflowStates.includes(workflowStatus) || nodeId === "preprocessing" ? (
             ViewerComponent ? (
-              <ViewerComponent />
+              <ViewerComponent 
+                projectId={projectId}
+                workflowStatus={workflowStatus}
+                traces={traces}
+              />
             ) : (
               <EmptyState 
                 title="Viewer Not Implemented" 
