@@ -84,12 +84,30 @@ class QualityEvaluatorAgent(BaseAgent):
         Existing Sample Questions (for novelty comparison, up to 10 shown):
         {existing_questions_block}
 
+        EVALUATION CONSTRAINT — READ BEFORE SCORING:
+        You are a RAG faithfulness evaluator, not a fact-checker.
+        Your only source of truth is the context chunks provided above.
+        Do not penalize an answer for omitting information that exists in the
+        real world but is absent from the provided chunks.
+        Do not reward or penalize based on your knowledge of any company,
+        product, or domain outside what the chunks contain.
+        hallucination_risk_score must reflect only unsupported claims relative
+        to the provided context, nothing else.
+
         Output JSON with:
         faithfulness_score (0-1): whether the expected answer is supported by the evidence chunks.
         answer_relevance_score (0-1): whether the expected answer directly answers the question.
         context_precision_score (0-1): whether provided evidence chunks are actually relevant.
         context_recall_score (0-1): whether provided evidence chunks contain enough information to answer.
-        hallucination_risk_score (0-1): risk that the answer includes unsupported information. Lower is better.
+        hallucination_risk_score (0-1): risk that the answer includes information
+        NOT present in the provided source context chunks. Lower is better.
+        CRITICAL: Evaluate this score ONLY against the source context provided.
+        Do NOT use your world knowledge to judge factual accuracy.
+        If the answer is fully supported by the source context, this score MUST
+        be low (≤ 0.15), even if you believe the source context itself is
+        incomplete or inaccurate in the real world.
+        A score above 0.5 means the answer contains specific claims that cannot
+        be found anywhere in the provided source chunks.
         answerability_score (0-1): whether the question is answerable from the provided documents.
         clarity_score (0-1): whether the question and answer are clear.
         difficulty_match_score (0-1): whether the generated sample matches its intended difficulty.
@@ -113,7 +131,19 @@ class QualityEvaluatorAgent(BaseAgent):
 
         # Determine actual decision based on thresholds
         original_overall = response.get("overall_score", 0.0)
-        overall_score = (original_overall * 0.85) + (novelty_score * 0.15)
+        hallucination_risk_score = response.get("hallucination_risk_score", 0.0)
+
+        # Hard cap: Python enforces consistency between hallucination_risk and
+        # overall_score. The LLM's self-reported overall_score cannot exceed
+        # these ceilings when hallucination_risk is elevated.
+        if hallucination_risk_score > 0.70:
+            capped_overall = min(original_overall, 0.40)
+        elif hallucination_risk_score > 0.40:
+            capped_overall = min(original_overall, 0.70)
+        else:
+            capped_overall = original_overall
+
+        overall_score = (capped_overall * 0.85) + (novelty_score * 0.15)
 
         faithfulness_score = response.get("faithfulness_score", response.get("grounding_score", 0.0))
         answer_relevance_score = response.get("answer_relevance_score", 0.0)
