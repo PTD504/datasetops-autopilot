@@ -16,6 +16,7 @@ import TimelinePanel from "../../../../../components/mission-control/timeline/Ti
 import ConsolePanel from "../../../../../components/mission-control/console/ConsolePanel";
 import WorkflowBanner from "../../../../../components/mission-control/WorkflowBanner";
 import ArtifactViewer from "../../../../../components/mission-control/ArtifactViewer/ArtifactViewer";
+import CompletionOverlay from "../../../../../components/mission-control/CompletionOverlay";
 import { 
   WorkflowStatus, 
   TraceItem, 
@@ -217,6 +218,9 @@ export default function MissionControlDashboard({
           onClose={() => setSelectedNodeId(null)}
         />
       )}
+
+      {/* Completion success overlay */}
+      <CompletionOverlay />
     </div>
   );
 }

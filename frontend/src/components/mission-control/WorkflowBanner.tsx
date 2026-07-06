@@ -11,12 +11,30 @@ interface WorkflowBannerProps {
   sampleReviewCount?: number;
 }
 
+import { useMissionControlStore } from "./store/useMissionControlStore";
+
 export default function WorkflowBanner({
   projectId,
   workflowStatus,
   sampleReviewCount = 3,
 }: WorkflowBannerProps) {
+  const { isDownloaded, setSelectedNodeId } = useMissionControlStore();
   const derivedState = getWorkflowDerivedState(workflowStatus, projectId, sampleReviewCount);
+
+  // Customize banner fields for the final Export stage based on download status
+  if (workflowStatus === "EXPORT_READY" || workflowStatus === "DONE") {
+    if (isDownloaded) {
+      derivedState.bannerTitle = "Mission Complete";
+      derivedState.bannerDescription = "Benchmark exported successfully. Ready for evaluation.";
+      derivedState.bannerActionLabel = "Create Another Benchmark";
+      derivedState.bannerActionHref = "/projects/new";
+    } else {
+      derivedState.bannerTitle = "Workflow Complete";
+      derivedState.bannerDescription = "Package generated successfully.";
+      derivedState.bannerActionLabel = "Open Package Explorer";
+      derivedState.bannerActionHref = "#";
+    }
+  }
 
   if (derivedState.bannerType === "none") {
     return null;
@@ -87,7 +105,16 @@ export default function WorkflowBanner({
       {/* Action button (surfaced contextually) */}
       {derivedState.bannerActionLabel && derivedState.bannerActionHref && (
         <div className="relative z-10 shrink-0 w-full md:w-auto flex justify-end">
-          <Link href={derivedState.bannerActionHref} className="w-full md:w-auto">
+          <Link 
+            href={derivedState.bannerActionHref} 
+            className="w-full md:w-auto"
+            onClick={(e) => {
+              if (derivedState.bannerActionLabel === "Open Package Explorer") {
+                e.preventDefault();
+                setSelectedNodeId("exporter");
+              }
+            }}
+          >
             <Button
               variant={actionButtonVariant}
               size="sm"

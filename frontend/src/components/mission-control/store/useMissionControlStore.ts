@@ -15,6 +15,8 @@ export interface MissionControlState {
   usage: UsageSummary | null;
   loading: boolean;
   error: boolean;
+  isDownloaded: boolean;
+  showCompletionOverlay: boolean;
   setSelectedNodeId: (id: string | null) => void;
   setCurrentWorkflowStatus: (status: WorkflowStatus) => void;
   setDemoMode: (enabled: boolean) => void;
@@ -23,6 +25,8 @@ export interface MissionControlState {
   setUsage: (usage: UsageSummary | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: boolean) => void;
+  setIsDownloaded: (downloaded: boolean) => void;
+  setShowCompletionOverlay: (show: boolean) => void;
 }
 
 const MissionControlContext = createContext<MissionControlState | undefined>(undefined);
@@ -49,6 +53,8 @@ export function MissionControlProvider({ children }: ProviderProps) {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<boolean>(false);
+  const [isDownloaded, setIsDownloaded] = useState<boolean>(false);
+  const [showCompletionOverlay, setShowCompletionOverlay] = useState<boolean>(false);
 
   const value: MissionControlState = {
     selectedNodeId,
@@ -59,6 +65,8 @@ export function MissionControlProvider({ children }: ProviderProps) {
     usage,
     loading,
     error,
+    isDownloaded,
+    showCompletionOverlay,
     setSelectedNodeId,
     setCurrentWorkflowStatus,
     setDemoMode,
@@ -67,6 +75,8 @@ export function MissionControlProvider({ children }: ProviderProps) {
     setUsage,
     setLoading,
     setError,
+    setIsDownloaded,
+    setShowCompletionOverlay,
   };
 
   return React.createElement(

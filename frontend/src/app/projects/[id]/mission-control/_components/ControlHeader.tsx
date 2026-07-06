@@ -10,6 +10,7 @@ import {
   RotateCcw
 } from "lucide-react";
 import { WorkflowStatus } from "../../../../../components/mission-control/types";
+import { useMissionControlStore } from "../../../../../components/mission-control/store/useMissionControlStore";
 
 interface ControlHeaderProps {
   projectId: string;
@@ -43,10 +44,18 @@ export default function ControlHeader({
     "DONE"
   ];
 
+  const { isDownloaded } = useMissionControlStore();
+
   const currentStateIndex = allStates.indexOf(workflowStatus);
-  const progressValue = currentStateIndex >= 0 
-    ? Math.max(5, ((currentStateIndex + 1) / allStates.length) * 100) 
-    : 0;
+  let progressValue = 0;
+  if (currentStateIndex >= 0) {
+    if (workflowStatus === "EXPORT_READY" || workflowStatus === "DONE") {
+      progressValue = isDownloaded ? 100 : 95;
+    } else {
+      const rawProgress = ((currentStateIndex + 1) / allStates.length) * 100;
+      progressValue = Math.min(94, Math.max(5, rawProgress));
+    }
+  }
 
   // Deriving the active agent from workflow states
   const getActiveAgent = (status: WorkflowStatus) => {

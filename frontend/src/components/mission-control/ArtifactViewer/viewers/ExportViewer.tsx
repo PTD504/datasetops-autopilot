@@ -23,7 +23,7 @@ export default function ExportViewer({
   workflowStatus,
   traces,
 }: ExportViewerProps) {
-  const { demoMode } = useMissionControlStore();
+  const { demoMode, setIsDownloaded, setShowCompletionOverlay, setSelectedNodeId } = useMissionControlStore();
   const { samples, loading: samplesLoading } = useGeneratorSamples(projectId, demoMode);
   const [selectedFile, setSelectedFile] = useState<string | null>("dataset_card.md");
 
@@ -87,6 +87,15 @@ export default function ExportViewer({
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const downloadUrl = `${apiUrl}/api/projects/${projectId}/export/download`;
     window.open(downloadUrl, "_blank");
+
+    // Mark as downloaded to animate progress bar to 100%
+    setIsDownloaded(true);
+
+    // Natural close delay to let the progress bar animate and show success state
+    setTimeout(() => {
+      setSelectedNodeId(null); // Close the viewer slide-out
+      setShowCompletionOverlay(true); // Open the overlay
+    }, 1500);
   };
 
   // Reconstruct preview content depending on the selected file
