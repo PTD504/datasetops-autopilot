@@ -114,7 +114,7 @@ export default function ArtifactViewer({
       
       // Fallback if tool_calls array isn't populated but output indicates completion
       if (runLlmCalls === 0 && run.status === "completed") {
-        runLlmCalls = nodeId === "preprocessing" ? 0 : 1; // Preprocessing is non-LLM, others use at least 1 call
+        runLlmCalls = (nodeId === "preprocessing" || nodeId === "exporter") ? 0 : 1; // Non-LLM nodes get 0 calls
       }
       llmCalls += runLlmCalls;
     });
