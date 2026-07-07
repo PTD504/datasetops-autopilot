@@ -24,8 +24,14 @@ export default function SourceUnderstandingViewer({
   const reportData = resolveSourceReportArtifact(traces);
   const analysisRun = resolveSourceUnderstandingRun(traces);
 
-  // Check if analysis is currently active
-  const isAnalyzing = workflowStatus === "PREPROCESSING" || (analysisRun && analysisRun.status === "running");
+  // Check if analysis is currently active (prior to final report generation)
+  const isAnalyzing = 
+    workflowStatus === "SOURCE_ANALYZING" || 
+    workflowStatus === "SOURCE_ANALYZED" || 
+    workflowStatus === "PLANNING" ||
+    workflowStatus === "PLAN_READY" ||
+    workflowStatus === "PREPROCESSING" || 
+    (analysisRun && analysisRun.status === "running");
 
   // Renders empty/loading state if data is not yet resolved
   if (!reportData) {

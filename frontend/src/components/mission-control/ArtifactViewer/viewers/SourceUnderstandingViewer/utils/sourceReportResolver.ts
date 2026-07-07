@@ -32,7 +32,8 @@ export function resolveSourceUnderstandingRun(traces: TraceItem[]): AgentRun | n
   const runItem = traces.find(
     (t) =>
       t.type === "agent_run" &&
-      (t.data as AgentRun).agent_name === "SourceUnderstandingAgent"
+      ((t.data as AgentRun).agent_name.startsWith("SourceUnderstandingAgent") ||
+       (t.data as AgentRun).agent_name === "SourceUnderstandingAgent")
   );
   if (!runItem) return null;
   return runItem.data as AgentRun;
