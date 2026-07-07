@@ -52,6 +52,63 @@ def stop_workflow(project_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Project not found")
     return request_cancellation(db, project)
 
+@router.post("/{project_id}/resume")
+def resume_workflow(project_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    non_resumable_states = {
+        WorkflowState.DONE,
+        WorkflowState.EXPORT_READY,
+        WorkflowState.WAITING_FOR_PLAN_APPROVAL,
+        WorkflowState.WAITING_FOR_SAMPLE_REVIEW,
+    }
+    if project.workflow_state in non_resumable_states:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Workflow in state '{project.workflow_state}' does not need to be resumed.",
+        )
+
+    # Reset cancellation flags and clear last error before dispatching.
+    project.cancel_requested = False
+    project.last_error = None
+    db.commit()
+
+    # Dispatch heuristic: states that belong to the generation pipeline (at or
+    # past PLAN_APPROVED). BenchmarkPlan has no status column, so project state
+    # is the sole reliable signal.
+    generation_pipeline_states = {
+        WorkflowState.PLAN_APPROVED,
+        WorkflowState.GENERATING,
+        WorkflowState.VALIDATING,
+        WorkflowState.EVALUATING,
+        WorkflowState.REPAIRING,
+    }
+    # For FAILED, check whether a BenchmarkPlan exists to determine which
+    # pipeline was active when the failure occurred. If the project's last
+    # known state was in the generation pipeline, prefer that check.
+    if project.workflow_state in generation_pipeline_states:
+        use_generation = True
+    elif project.workflow_state == WorkflowState.FAILED:
+        plan = db.query(BenchmarkPlan).filter(BenchmarkPlan.project_id == project_id).first()
+        use_generation = plan is not None
+    else:
+        use_generation = False
+
+    if use_generation:
+        from backend.workflows import run_generation_workflow
+        background_tasks.add_task(run_generation_workflow, project_id)
+    else:
+        from backend.workflows import run_initial_workflow
+        background_tasks.add_task(run_initial_workflow, project_id)
+
+    return {
+        "project_id": project.id,
+        "workflow_state": workflow_state_value(project),
+        "message": "Workflow resumed",
+    }
+
 @router.post("/{project_id}/documents")
 async def upload_document(project_id: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
     project = db.query(Project).filter(Project.id == project_id).first()

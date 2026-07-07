@@ -99,6 +99,23 @@ def run_generation_workflow(project_id: str):
             tuple(sorted(s.source_chunk_ids or [])) for s in existing_questions
         ]
 
+        # Idempotency guard: on resume, skip slots that were already generated.
+        # Samples with any status other than REJECTED count as successfully generated.
+        already_generated = (
+            db.query(Sample)
+            .filter(
+                Sample.project_id == project_id,
+                Sample.status != SampleStatus.REJECTED,
+            )
+            .count()
+        )
+        remaining = total_samples - already_generated
+        print(
+            f"Resuming generation: {already_generated}/{total_samples} samples already exist,"
+            f" generating {remaining} more"
+        )
+        slots = slots[:remaining]
+
         # Run generator and evaluator slot-by-slot
         for idx, slot in enumerate(slots):
             raise_if_cancelled(db, project_id, f"generation.slot_{idx}")
@@ -247,6 +264,8 @@ def run_generation_workflow(project_id: str):
     except WorkflowCancellationRequested as e:
         print(f"Generation workflow cancelled: {e}")
         log_workflow_event(db, project_id, "workflow_cancelled", f"Generation workflow cancelled: {str(e)}")
+        transition_to(db, project, WorkflowState.FAILED)
+        db.commit()
     except Exception as e:
         print(f"Error in generation workflow: {e}")
         transition_to(db, project, WorkflowState.FAILED, log_message=sanitize_error_message(e), event_type="workflow_failed")

@@ -200,6 +200,8 @@ def run_initial_workflow(project_id: str):
     except WorkflowCancellationRequested as e:
         print(f"Initial workflow cancelled: {e}")
         log_workflow_event(db, project_id, "workflow_cancelled", f"Initial workflow cancelled: {str(e)}")
+        transition_to(db, project, WorkflowState.FAILED)
+        db.commit()
     except Exception as e:
         print(f"Error in initial workflow: {e}")
         transition_to(db, project, WorkflowState.FAILED, log_message=sanitize_error_message(e), event_type="workflow_failed")
