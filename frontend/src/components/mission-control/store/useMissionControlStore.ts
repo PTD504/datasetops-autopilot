@@ -17,6 +17,7 @@ export interface MissionControlState {
   error: boolean;
   isDownloaded: boolean;
   showCompletionOverlay: boolean;
+  isPlanReviewOpen: boolean;
   setSelectedNodeId: (id: string | null) => void;
   setCurrentWorkflowStatus: (status: WorkflowStatus) => void;
   setDemoMode: (enabled: boolean) => void;
@@ -27,6 +28,7 @@ export interface MissionControlState {
   setError: (error: boolean) => void;
   setIsDownloaded: (downloaded: boolean) => void;
   setShowCompletionOverlay: (show: boolean) => void;
+  setIsPlanReviewOpen: (open: boolean) => void;
 }
 
 const MissionControlContext = createContext<MissionControlState | undefined>(undefined);
@@ -60,6 +62,12 @@ export function MissionControlProvider({ children, initialProjectId }: ProviderP
     return false;
   });
   const [showCompletionOverlay, setShowCompletionOverlay] = useState<boolean>(false);
+  const [isPlanReviewOpen, setIsPlanReviewOpen] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return window.location.search.includes("reviewPlan=true");
+    }
+    return false;
+  });
 
   const setIsDownloaded = (downloaded: boolean) => {
     setIsDownloadedState(downloaded);
@@ -79,6 +87,7 @@ export function MissionControlProvider({ children, initialProjectId }: ProviderP
     error,
     isDownloaded,
     showCompletionOverlay,
+    isPlanReviewOpen,
     setSelectedNodeId,
     setCurrentWorkflowStatus,
     setDemoMode,
@@ -89,6 +98,7 @@ export function MissionControlProvider({ children, initialProjectId }: ProviderP
     setError,
     setIsDownloaded,
     setShowCompletionOverlay,
+    setIsPlanReviewOpen,
   };
 
   return React.createElement(

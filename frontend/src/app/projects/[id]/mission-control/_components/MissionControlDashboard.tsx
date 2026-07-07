@@ -17,6 +17,7 @@ import ConsolePanel from "../../../../../components/mission-control/console/Cons
 import WorkflowBanner from "../../../../../components/mission-control/WorkflowBanner";
 import ArtifactViewer from "../../../../../components/mission-control/ArtifactViewer/ArtifactViewer";
 import CompletionOverlay from "../../../../../components/mission-control/CompletionOverlay";
+import PlanReviewDrawer from "../../../../../components/mission-control/plan-review/PlanReviewDrawer";
 import { 
   WorkflowStatus, 
   TraceItem, 
@@ -53,6 +54,8 @@ export default function MissionControlDashboard({
     setDemoMode,
     selectedNodeId,
     setSelectedNodeId,
+    isPlanReviewOpen,
+    setIsPlanReviewOpen,
   } = useMissionControlStore();
 
   const [samplesCount, setSamplesCount] = useState(3);
@@ -216,6 +219,17 @@ export default function MissionControlDashboard({
           workflowStatus={activeWorkflowStatus}
           traces={activeTraces}
           onClose={() => setSelectedNodeId(null)}
+        />
+      )}
+
+      {/* Plan Review/Edit Drawer Overlay */}
+      {isPlanReviewOpen && (
+        <PlanReviewDrawer
+          projectId={projectId}
+          onClose={() => setIsPlanReviewOpen(false)}
+          onPlanApproved={() => {
+            setIsPlanReviewOpen(false);
+          }}
         />
       )}
 

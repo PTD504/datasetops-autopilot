@@ -11,6 +11,7 @@ import DatasetSection from "./IntakePlannerViewer/components/DatasetSection";
 import QualityRulesSection from "./IntakePlannerViewer/components/QualityRulesSection";
 import DecisionsSection from "./IntakePlannerViewer/components/DecisionsSection";
 import WarningsSection from "./IntakePlannerViewer/components/WarningsSection";
+import { useMissionControlStore } from "../../store/useMissionControlStore";
 
 interface IntakePlannerViewerProps {
   projectId: string;
@@ -23,6 +24,8 @@ export default function IntakePlannerViewer({
   workflowStatus,
   traces,
 }: IntakePlannerViewerProps) {
+  const { setIsPlanReviewOpen } = useMissionControlStore();
+
   // Extract and resolve artifacts/run data from traces
   const planData = resolvePlanArtifact(traces);
   const adjustmentsData = resolveAdjustmentsArtifact(traces);
@@ -62,6 +65,25 @@ export default function IntakePlannerViewer({
 
   return (
     <div className="flex flex-col gap-5 select-none text-left">
+      {/* Checkpoint Banner */}
+      {workflowStatus === "WAITING_FOR_PLAN_APPROVAL" && (
+        <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 text-xs text-amber-250 flex items-center justify-between gap-3 shadow-md border-dashed">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full rounded-full opacity-75 bg-amber-400 animate-ping"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+            </span>
+            <span className="font-semibold text-slate-250">Human Checkpoint: Review, edit and approve the benchmark plan before generation begins.</span>
+          </div>
+          <button 
+            onClick={() => setIsPlanReviewOpen(true)}
+            className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] uppercase tracking-wider transition-colors cursor-pointer shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.25)] active:scale-95 transition-transform"
+          >
+            Review & Edit Plan
+          </button>
+        </div>
+      )}
+
       {/* Overview subtitle description */}
       <div className="border-b border-white/[0.04] pb-4">
         <p className="text-xs text-slate-400 leading-relaxed font-sans">

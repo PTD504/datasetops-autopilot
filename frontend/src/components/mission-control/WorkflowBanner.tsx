@@ -18,7 +18,7 @@ export default function WorkflowBanner({
   workflowStatus,
   sampleReviewCount = 3,
 }: WorkflowBannerProps) {
-  const { isDownloaded, setSelectedNodeId } = useMissionControlStore();
+  const { isDownloaded, setSelectedNodeId, setIsPlanReviewOpen } = useMissionControlStore();
   const derivedState = getWorkflowDerivedState(workflowStatus, projectId, sampleReviewCount);
 
   // Customize banner fields for the final Export stage based on download status
@@ -109,7 +109,10 @@ export default function WorkflowBanner({
             href={derivedState.bannerActionHref} 
             className="w-full md:w-auto"
             onClick={(e) => {
-              if (derivedState.bannerActionLabel === "Open Package Explorer") {
+              if (workflowStatus === "WAITING_FOR_PLAN_APPROVAL") {
+                e.preventDefault();
+                setIsPlanReviewOpen(true);
+              } else if (derivedState.bannerActionLabel === "Open Package Explorer") {
                 e.preventDefault();
                 setSelectedNodeId("exporter");
               }

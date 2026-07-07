@@ -3,6 +3,7 @@ import { Info, Sparkles, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { WorkflowStatus } from "./types";
 import { getWorkflowDerivedState } from "./workflowStateHelpers";
+import { useMissionControlStore } from "./store/useMissionControlStore";
 
 interface HumanReviewOverlayProps {
   projectId: string;
@@ -13,6 +14,7 @@ export default function HumanReviewOverlay({
   projectId,
   workflowStatus,
 }: HumanReviewOverlayProps) {
+  const { setIsPlanReviewOpen } = useMissionControlStore();
   const derivedState = getWorkflowDerivedState(workflowStatus, projectId);
 
   if (!derivedState.isPaused || !derivedState.bannerActionLabel || !derivedState.bannerActionHref) {
@@ -41,9 +43,15 @@ export default function HumanReviewOverlay({
       
       <Link 
         href={derivedState.bannerActionHref}
+        onClick={(e) => {
+          if (workflowStatus === "WAITING_FOR_PLAN_APPROVAL") {
+            e.preventDefault();
+            setIsPlanReviewOpen(true);
+          }
+        }}
         className="flex items-center gap-0.5 text-amber-400 hover:text-amber-300 font-bold transition-colors group cursor-pointer text-[11px]"
       >
-        Proceed
+        {workflowStatus === "WAITING_FOR_PLAN_APPROVAL" ? "Review & Edit" : "Proceed"}
         <ArrowRight size={11} className="transform group-hover:translate-x-0.5 transition-transform" />
       </Link>
     </div>

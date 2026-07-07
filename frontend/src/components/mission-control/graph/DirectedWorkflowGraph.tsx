@@ -23,7 +23,8 @@ export default function DirectedWorkflowGraph({
 }: DirectedWorkflowGraphProps) {
   const { 
     selectedNodeId, 
-    setSelectedNodeId 
+    setSelectedNodeId,
+    setIsPlanReviewOpen
   } = useMissionControlStore();
 
   const [hasEvaluated, setHasEvaluated] = React.useState(false);
