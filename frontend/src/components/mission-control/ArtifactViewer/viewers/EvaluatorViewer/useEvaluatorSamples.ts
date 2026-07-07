@@ -697,5 +697,5 @@ export function useEvaluatorSamples(projectId: string, demoMode: boolean) {
     };
   }, [projectId, demoMode]);
 
-  return { samples, loading, error };
+  return { samples, setSamples, loading, error };
 }

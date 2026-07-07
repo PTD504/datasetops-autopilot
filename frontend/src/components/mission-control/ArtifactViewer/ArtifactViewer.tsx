@@ -189,7 +189,9 @@ export default function ArtifactViewer({
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-extrabold text-white tracking-tight">
-                  {node.label} Workspace
+                  {nodeId === "evaluator" && workflowStatus === "WAITING_FOR_SAMPLE_REVIEW"
+                    ? "Human Review Workspace"
+                    : `${node.label} Workspace`}
                 </h2>
                 <Badge label={statusLabel} variant={statusVariant} />
               </div>

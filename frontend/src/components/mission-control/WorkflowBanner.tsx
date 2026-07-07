@@ -112,6 +112,9 @@ export default function WorkflowBanner({
               if (workflowStatus === "WAITING_FOR_PLAN_APPROVAL") {
                 e.preventDefault();
                 setIsPlanReviewOpen(true);
+              } else if (workflowStatus === "WAITING_FOR_SAMPLE_REVIEW") {
+                e.preventDefault();
+                setSelectedNodeId("evaluator");
               } else if (derivedState.bannerActionLabel === "Open Package Explorer") {
                 e.preventDefault();
                 setSelectedNodeId("exporter");

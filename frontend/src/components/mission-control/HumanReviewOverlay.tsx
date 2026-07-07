@@ -14,7 +14,7 @@ export default function HumanReviewOverlay({
   projectId,
   workflowStatus,
 }: HumanReviewOverlayProps) {
-  const { setIsPlanReviewOpen } = useMissionControlStore();
+  const { setIsPlanReviewOpen, setSelectedNodeId } = useMissionControlStore();
   const derivedState = getWorkflowDerivedState(workflowStatus, projectId);
 
   if (!derivedState.isPaused || !derivedState.bannerActionLabel || !derivedState.bannerActionHref) {
@@ -47,11 +47,14 @@ export default function HumanReviewOverlay({
           if (workflowStatus === "WAITING_FOR_PLAN_APPROVAL") {
             e.preventDefault();
             setIsPlanReviewOpen(true);
+          } else if (workflowStatus === "WAITING_FOR_SAMPLE_REVIEW") {
+            e.preventDefault();
+            setSelectedNodeId("evaluator");
           }
         }}
         className="flex items-center gap-0.5 text-amber-400 hover:text-amber-300 font-bold transition-colors group cursor-pointer text-[11px]"
       >
-        {workflowStatus === "WAITING_FOR_PLAN_APPROVAL" ? "Review & Edit" : "Proceed"}
+        Proceed
         <ArrowRight size={11} className="transform group-hover:translate-x-0.5 transition-transform" />
       </Link>
     </div>

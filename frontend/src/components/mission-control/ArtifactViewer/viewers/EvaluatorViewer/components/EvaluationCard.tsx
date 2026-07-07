@@ -1,5 +1,5 @@
 import React from "react";
-import { HelpCircle, Sparkles, Layers, RefreshCw, Eye, MessageSquare, AlertCircle } from "lucide-react";
+import { HelpCircle, Sparkles, Layers, RefreshCw, Eye, MessageSquare, AlertCircle, Check, X, Edit3 } from "lucide-react";
 import DecisionBadge from "./DecisionBadge";
 import QualityScore from "./QualityScore";
 import ReasoningPanel from "./ReasoningPanel";
@@ -10,9 +10,12 @@ import { EvaluatorSample } from "../useEvaluatorSamples";
 
 interface EvaluationCardProps {
   sample: EvaluatorSample;
+  onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
+  onEdit?: (sample: EvaluatorSample) => void;
 }
 
-export default function EvaluationCard({ sample }: EvaluationCardProps) {
+export default function EvaluationCard({ sample, onApprove, onReject, onEdit }: EvaluationCardProps) {
   // Format sample type string
   const formatSampleType = (type: string) => {
     if (!type) return "General Query";
@@ -32,14 +35,35 @@ export default function EvaluationCard({ sample }: EvaluationCardProps) {
       <div className="flex items-center justify-between gap-3 text-[10px] font-mono border-b border-white/[0.03] pb-3">
         <span className="text-slate-500 font-medium">SAMPLE ID: {sample.id.substring(0, 8)}</span>
         
-        {/* Large prominent Decision badge */}
-        <div className="flex items-center gap-2">
+        {/* Badges */}
+        <div className="flex items-center gap-2 select-none">
           {sample.retry_count > 0 && (
-            <span className="text-[9px] text-slate-400 font-mono">
+            <span className="text-[9px] text-slate-400 font-mono mr-1">
               Attempts: {sample.retry_count + 1}
             </span>
           )}
-          {sample.decision && <DecisionBadge decision={sample.decision} />}
+          
+          {/* AI Evaluator Decision Badge */}
+          {sample.decision && (
+            <div className="flex items-center gap-1">
+              <span className="text-[8px] text-slate-500 uppercase tracking-wider font-semibold">AI:</span>
+              <DecisionBadge decision={sample.decision} />
+            </div>
+          )}
+          
+          {/* Human Decision Badge */}
+          <div className="flex items-center gap-1 border-l border-white/10 pl-2">
+            <span className="text-[8px] text-slate-500 uppercase tracking-wider font-semibold">Human:</span>
+            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold uppercase tracking-wider ${
+              sample.status === "APPROVED" || sample.status === "PASS"
+                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                : sample.status === "REJECTED"
+                ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+            }`}>
+              {sample.status === "APPROVED" || sample.status === "PASS" ? "Approved" : sample.status === "REJECTED" ? "Rejected" : "Pending"}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -155,6 +179,33 @@ export default function EvaluationCard({ sample }: EvaluationCardProps) {
             </div>
           </>
         )}
+      </div>
+
+      {/* Human Review Actions */}
+      <div className="flex items-center gap-3 pt-4 border-t border-white/[0.04] justify-end select-none">
+        <button
+          onClick={() => onApprove?.(sample.id)}
+          disabled={sample.status === "APPROVED" || sample.status === "PASS"}
+          className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-450 disabled:opacity-30 disabled:pointer-events-none disabled:shadow-none text-slate-950 font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+        >
+          <Check size={11} className="stroke-[3]" />
+          Approve
+        </button>
+        <button
+          onClick={() => onReject?.(sample.id)}
+          disabled={sample.status === "REJECTED"}
+          className="px-3.5 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-455 disabled:opacity-30 disabled:pointer-events-none disabled:shadow-none text-white font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-[0_0_12px_rgba(244,63,94,0.15)]"
+        >
+          <X size={11} className="stroke-[3]" />
+          Reject
+        </button>
+        <button
+          onClick={() => onEdit?.(sample)}
+          className="px-3.5 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-slate-300 font-extrabold text-[10px] uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+        >
+          <Edit3 size={11} />
+          Edit Sample
+        </button>
       </div>
 
     </div>

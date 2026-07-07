@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { X, Terminal, Activity } from "lucide-react";
 import { useMissionControlStore } from "../../../../../components/mission-control/store/useMissionControlStore";
 import HumanReviewOverlay from "../../../../../components/mission-control/HumanReviewOverlay";
@@ -23,6 +23,36 @@ export default function WorkspaceGrid({
 }: WorkspaceGridProps) {
   const { selectedNodeId, setSelectedNodeId } = useMissionControlStore();
   const [activeTab, setActiveTab] = useState<"timeline" | "console">("timeline");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+
+  // Monitor scroll actions to track if user is reading previous logs
+  const handleScroll = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 30;
+    isNearBottomRef.current = atBottom;
+  };
+
+  // Scroll to bottom on new logs only if user is already at the bottom
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container && isNearBottomRef.current) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [timelineComponent, consoleComponent]);
+
+  // Scroll to bottom immediately when switching tabs
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container) {
+      isNearBottomRef.current = true;
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [activeTab]);
 
   return (
     <div className="w-full flex-1 flex flex-col gap-6 relative z-10">
@@ -108,9 +138,31 @@ export default function WorkspaceGrid({
         </div>
 
         {/* Tab Panel Content */}
-        <div className="flex-1 overflow-y-auto max-h-[320px]">
+        <div 
+          ref={scrollRef} 
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto max-h-[320px] custom-workspace-scroll pr-1 select-text scroll-smooth"
+        >
           {activeTab === "timeline" ? timelineComponent : consoleComponent}
         </div>
+
+        {/* Sleek dark scrollbar styles */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          .custom-workspace-scroll::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+          }
+          .custom-workspace-scroll::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .custom-workspace-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 9999px;
+          }
+          .custom-workspace-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.16);
+          }
+        ` }} />
       </div>
     </div>
   );

@@ -177,11 +177,14 @@ const STATE_CONFIG_REGISTRY: Record<WorkflowStatus, StateConfig> = {
   WAITING_FOR_SAMPLE_REVIEW: {
     highlightedNodeId: "evaluator",
     shouldDimGraph: true,
-    statusBadgeLabel: "WAITING FOR REVIEW",
+    statusBadgeLabel: "AWAITING APPROVAL",
     isPaused: true,
     bannerTitle: "Human Checkpoint",
-    bannerDescription: ({ sampleCount }) => `Awaiting review for ${sampleCount} samples.`,
-    bannerActionLabel: "Review Samples",
+    bannerDescription: ({ sampleCount }) =>
+      sampleCount === 1
+        ? "1 benchmark sample requires manual review before export."
+        : `${sampleCount} benchmark samples require manual review before export.`,
+    bannerActionLabel: "Review & Edit Samples",
     bannerActionHref: (projectId) => `/projects/${projectId}/samples`,
     bannerType: "warning",
   },
