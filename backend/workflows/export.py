@@ -35,10 +35,10 @@ def run_export_workflow(db: Session, project: Project):
         export_record = exporter.run()
         
         agent_logger.update(
-            decision_summary=f"Exported package successfully: {export_record.file_urls.get('export.zip') if (export_record and export_record.file_urls) else 'N/A'}",
+            decision_summary="Exported package successfully.",
             output_json={
                 "export_id": export_record.id if export_record else None,
-                "file_urls": export_record.file_urls if export_record else None
+                "file_urls": export_record.artifact_file_urls if export_record else None
             }
         )
 
@@ -77,10 +77,10 @@ def run_export_workflow(db: Session, project: Project):
             summary=f"Benchmark package exported with {len(approved_samples)} approved samples.",
             content_json={
                 "export_id": export_record.id,
-                "exported_files": list(export_record.file_urls.keys()) if export_record.file_urls else ["export.zip"],
+                "exported_files": list(export_record.artifact_file_urls.keys()) if export_record.artifact_file_urls else [],
                 "approved_sample_count": len(approved_samples),
                 "rejected_sample_count": len(rejected_samples),
-                "file_urls": {k: "Safe download endpoint" for k in export_record.file_urls.keys()} if export_record.file_urls else {},
+                "file_urls": {k: "Safe download endpoint" for k in export_record.artifact_file_urls.keys()} if export_record.artifact_file_urls else {},
                 "generated_at": datetime.utcnow().isoformat()
             },
             agent_run_id=agent_logger.run_id
@@ -96,10 +96,10 @@ def rebuild_export_workflow(db: Session, project: Project):
         exporter = ExportReportAgent(db, project.id)
         export_record = exporter.run()
         agent_logger.update(
-            decision_summary=f"Rebuild package successfully: {export_record.file_urls.get('export.zip') if (export_record and export_record.file_urls) else 'N/A'}",
+            decision_summary="Rebuild package successfully.",
             output_json={
                 "export_id": export_record.id if export_record else None,
-                "file_urls": export_record.file_urls if export_record else None
+                "file_urls": export_record.artifact_file_urls if export_record else None
             }
         )
 
@@ -116,10 +116,10 @@ def rebuild_export_workflow(db: Session, project: Project):
                 summary=f"Benchmark package rebuilt with {approved_count} approved samples.",
                 content_json={
                     "export_id": export_record.id,
-                    "exported_files": list(export_record.file_urls.keys()) if export_record.file_urls else ["export.zip"],
+                    "exported_files": list(export_record.artifact_file_urls.keys()) if export_record.artifact_file_urls else [],
                     "approved_sample_count": approved_count,
                     "rejected_sample_count": rejected_count,
-                    "file_urls": {k: "Safe download endpoint" for k in export_record.file_urls.keys()} if export_record.file_urls else {},
+                    "file_urls": {k: "Safe download endpoint" for k in export_record.artifact_file_urls.keys()} if export_record.artifact_file_urls else {},
                     "generated_at": datetime.utcnow().isoformat(),
                     "is_rebuild": True
                 },

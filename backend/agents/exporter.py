@@ -30,13 +30,22 @@ class ExportReportAgent(BaseAgent):
         eval_path = os.path.join(export_dir, "rag_eval.jsonl")
         answer_path = os.path.join(export_dir, "answer_key.jsonl")
 
+        from backend.models.document import Chunk
+        chunk_rows = self.db.query(Chunk).filter(Chunk.project_id == self.project_id).all()
+        chunk_map = {c.id: c.text for c in chunk_rows}
+
         with open(eval_path, "w") as fe, open(answer_path, "w") as fa:
             for s in samples:
+                evidence = [
+                    {"chunk_id": cid, "text": chunk_map.get(cid, "")}
+                    for cid in (s.source_chunk_ids or [])
+                ]
                 fe.write(json.dumps({
                     "id": s.id,
                     "sample_type": s.sample_type,
                     "question": s.question,
-                    "source_chunk_ids": s.source_chunk_ids
+                    "source_chunk_ids": s.source_chunk_ids,
+                    "evidence": evidence
                 }) + "\n")
 
                 fa.write(json.dumps({
@@ -213,5 +222,5 @@ class ExportReportAgent(BaseAgent):
         project.workflow_state = "EXPORT_READY"
         self.db.commit()
 
-        self._log_trace("export_complete", {"file_count": len(file_urls)})
+        self._log_trace("export_complete", {"file_count": len(export_record.artifact_file_urls)})
         return export_record

@@ -14,3 +14,10 @@ class Export(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     project = relationship("Project", back_populates="exports")
+
+    @property
+    def artifact_file_urls(self) -> dict:
+        """Return file URLs excluding packaging/zip artifacts."""
+        if not self.file_urls:
+            return {}
+        return {k: v for k, v in self.file_urls.items() if k != "export.zip"}

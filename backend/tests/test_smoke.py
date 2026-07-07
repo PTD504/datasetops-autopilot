@@ -113,6 +113,24 @@ def test_full_mock_workflow():
         assert plan_draft["content_json"]["domain"] == "RAG Evaluation"
         assert len(plan_draft["content_json"]["categories"]) > 0
 
+        # Check export_summary to verify export.zip is excluded and the other 4 are present
+        exp_summary = next(a for a in artifacts if a["artifact_type"] == "export_summary")
+        exported_files = exp_summary["content_json"]["exported_files"]
+        assert "export.zip" not in exported_files
+        assert "rag_eval.jsonl" in exported_files
+        assert "answer_key.jsonl" in exported_files
+        assert "dataset_card.md" in exported_files
+        assert "quality_report.md" in exported_files
+        assert len(exported_files) == 4
+
+        file_urls = exp_summary["content_json"]["file_urls"]
+        assert "export.zip" not in file_urls
+        assert "rag_eval.jsonl" in file_urls
+        assert "answer_key.jsonl" in file_urls
+        assert "dataset_card.md" in file_urls
+        assert "quality_report.md" in file_urls
+        assert len(file_urls) == 4
+
         # 8. Check unified trace endpoint includes artifacts
         trace_resp = client.get(f"/api/projects/{project_id}/trace")
         assert trace_resp.status_code == 200
