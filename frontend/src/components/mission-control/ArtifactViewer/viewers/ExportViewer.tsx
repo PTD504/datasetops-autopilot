@@ -86,16 +86,23 @@ export default function ExportViewer({
   const handleDownloadAll = () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const downloadUrl = `${apiUrl}/api/projects/${projectId}/export/download`;
-    window.open(downloadUrl, "_blank");
+    
+    // Download using a hidden anchor tag to prevent browser tab flashing/stuttering
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.setAttribute("download", `datasetops-export-${projectId}.zip`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
     // Mark as downloaded to animate progress bar to 100%
     setIsDownloaded(true);
 
-    // Natural close delay to let the progress bar animate and show success state
+    // Quicker, smoother delay (600ms) to sync with progress bar transition (500ms)
     setTimeout(() => {
       setSelectedNodeId(null); // Close the viewer slide-out
       setShowCompletionOverlay(true); // Open the overlay
-    }, 1500);
+    }, 600);
   };
 
   // Reconstruct preview content depending on the selected file

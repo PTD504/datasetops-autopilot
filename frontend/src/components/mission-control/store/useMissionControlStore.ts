@@ -44,7 +44,7 @@ interface ProviderProps {
   initialProjectId: string;
 }
 
-export function MissionControlProvider({ children }: ProviderProps) {
+export function MissionControlProvider({ children, initialProjectId }: ProviderProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [currentWorkflowStatus, setCurrentWorkflowStatus] = useState<WorkflowStatus>("LOADING");
   const [demoMode, setDemoMode] = useState<boolean>(false); // Default to false to reflect real backend state
@@ -53,8 +53,20 @@ export function MissionControlProvider({ children }: ProviderProps) {
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<boolean>(false);
-  const [isDownloaded, setIsDownloaded] = useState<boolean>(false);
+  const [isDownloaded, setIsDownloadedState] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(`datasetops-downloaded-${initialProjectId}`) === "true";
+    }
+    return false;
+  });
   const [showCompletionOverlay, setShowCompletionOverlay] = useState<boolean>(false);
+
+  const setIsDownloaded = (downloaded: boolean) => {
+    setIsDownloadedState(downloaded);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`datasetops-downloaded-${initialProjectId}`, String(downloaded));
+    }
+  };
 
   const value: MissionControlState = {
     selectedNodeId,

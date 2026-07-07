@@ -439,6 +439,7 @@ export default function DirectedWorkflowGraph({
           const tPos = nodePositions[edge.target];
           const isActive = isEdgeActive(edge.source, edge.target);
           const isEdgeDimmed = shouldDimGraph && edge.target !== highlightedNodeId;
+          const isCooperationActive = isEdgeActive("generator", "evaluator");
 
           return (
             <WorkflowEdge
@@ -450,6 +451,7 @@ export default function DirectedWorkflowGraph({
               repairsCount={repairsCount}
               isDimmed={isEdgeDimmed}
               currentWorkflowStatus={currentWorkflowStatus}
+              isCooperationActive={isCooperationActive}
             />
           );
         })}

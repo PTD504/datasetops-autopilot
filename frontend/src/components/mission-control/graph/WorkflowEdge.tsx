@@ -10,6 +10,7 @@ interface WorkflowEdgeProps {
   repairsCount?: number;
   isDimmed?: boolean;
   currentWorkflowStatus?: string;
+  isCooperationActive?: boolean;
 }
 
 export default function WorkflowEdge({
@@ -20,6 +21,7 @@ export default function WorkflowEdge({
   repairsCount = 0,
   isDimmed = false,
   currentWorkflowStatus,
+  isCooperationActive = false,
 }: WorkflowEdgeProps) {
   // Safeguard if positions are not measured yet on the first frame
   if (!sourcePos || !targetPos) return null;
@@ -136,7 +138,7 @@ export default function WorkflowEdge({
     }
   } else if (edgeKey === "evaluator-generator") {
     const hasRepaired = repairsCount > 0;
-    if (isActive || hasRepaired) {
+    if (isActive || isCooperationActive || hasRepaired) {
       // Return path is active orange
       pathColorClass = "stroke-orange-500/80";
       textColorClass = "fill-orange-400 font-extrabold";
@@ -189,7 +191,7 @@ export default function WorkflowEdge({
   );
 
   // Animation and flow logic
-  const isDashedFlowActive = isActive || (edgeKey === "evaluator-generator" && repairsCount > 0);
+  const isDashedFlowActive = isActive || (edgeKey === "evaluator-generator" && (isCooperationActive || repairsCount > 0));
   const showForwardPackets = isActive && edgeKey === "generator-evaluator" && (
     currentWorkflowStatus !== undefined && ["GENERATING", "VALIDATING", "EVALUATING", "REPAIRING"].includes(currentWorkflowStatus)
   );
@@ -198,7 +200,7 @@ export default function WorkflowEdge({
   return (
     <g className={`select-none transition-all duration-500 ${isDimmed ? "opacity-60" : ""}`}>
       {/* Outer Glowing Path (Cubic Bezier Neon Pipe) */}
-      {(isActive || (edgeKey === "evaluator-generator" && repairsCount > 0)) && (
+      {(isActive || (edgeKey === "evaluator-generator" && (isCooperationActive || repairsCount > 0))) && (
         <path
           d={pathD}
           fill="none"
@@ -259,7 +261,7 @@ export default function WorkflowEdge({
       )}
 
       {/* Connection Label (Only active to avoid floating orphans) */}
-      {edge.label && (isActive || (edgeKey === "evaluator-generator" && repairsCount > 0)) && (
+      {edge.label && (isActive || (edgeKey === "evaluator-generator" && (isCooperationActive || repairsCount > 0))) && (
         <g>
           {/* Label backdrop mask */}
           <text
