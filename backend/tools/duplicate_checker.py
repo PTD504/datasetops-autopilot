@@ -74,7 +74,8 @@ class DuplicateCheckerTool:
                     best_score = 1.0
                     best_type = "exact"
                     matched_sample_id = sample.id
-                    reason = f"Exact normalized match found with sample {sample.id}."
+                    question_preview = (sample.question[:60] + "...") if len(sample.question) > 60 else sample.question
+                    reason = f"Exact normalized match found with: \"{question_preview}\"."
                     break
 
                 # 2. Lexical near-duplicate Jaccard similarity
@@ -101,10 +102,11 @@ class DuplicateCheckerTool:
                     best_score = sample_score
                     best_type = sample_type
                     matched_sample_id = sample.id
+                    question_preview = (sample.question[:60] + "...") if len(sample.question) > 60 else sample.question
                     if sample_type == "lexical_near":
-                        reason = f"Lexical near-duplicate found with sample {sample.id} (Jaccard similarity: {jaccard_score:.2f})."
+                        reason = f"Lexical near-duplicate found with: \"{question_preview}\" (Jaccard similarity: {jaccard_score:.2f})."
                     elif sample_type == "pattern":
-                        reason = f"Same evidence pattern found with sample {sample.id} (same category and chunk IDs)."
+                        reason = f"Same evidence pattern found with: \"{question_preview}\" (same category and chunk IDs)."
 
             is_duplicate = best_score >= 0.92
 

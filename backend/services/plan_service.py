@@ -68,7 +68,9 @@ def update_plan_and_reaudit(
         audit_result = source_agent.run_coverage_audit(
             chunks=project_chunks,
             categories=plan_update.categories or [],
-            doc_understanding=doc_under
+            doc_understanding=doc_under,
+            db=db,
+            project_id=project_id
         )
         final_summary = audit_result["summary"]
         final_warnings = audit_result["warnings"]
