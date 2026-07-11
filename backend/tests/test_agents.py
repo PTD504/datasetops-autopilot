@@ -46,7 +46,7 @@ def test_agents():
     result2 = source_agent.run(
         docs=[doc],
         chunks=[c1, c2],
-        benchmark_request="Build a refund policy and shipping RAG benchmark"
+        benchmark_request="Build a Vietnamese refund policy and shipping RAG benchmark"
     )
     report2 = result2["report"]
     assert len(report2["document_summaries"]) == 1

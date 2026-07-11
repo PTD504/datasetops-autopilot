@@ -19,25 +19,7 @@ class SourceUnderstandingAgent(BaseAgent):
     def _extract_categories_from_request(self, benchmark_request: str) -> List[str]:
         if not benchmark_request:
             return ["general", "specific"]
-
-        # 1. Try deterministic lightweight matching from benchmark_request first
-        req_lower = benchmark_request.lower()
-        extracted_categories = []
-        if "refund" in req_lower or "hoàn tiền" in req_lower:
-            extracted_categories.append("refund policy")
-        if "shipping" in req_lower or "vận chuyển" in req_lower:
-            extracted_categories.append("shipping policy")
-        if "warranty" in req_lower or "bảo hành" in req_lower:
-            extracted_categories.append("warranty")
-        if "cancellation" in req_lower or "hủy đơn" in req_lower:
-            extracted_categories.append("order cancellation")
-        if "payment" in req_lower or "thanh toán" in req_lower:
-            extracted_categories.append("payment policy")
-
-        if extracted_categories:
-            return extracted_categories
-
-        # 2. Fall back to LLM category extraction
+        
         prompt = f"""
         Extract a list of distinct benchmark evaluation categories (topics, domains, or themes) from this benchmark request:
         "{benchmark_request}"

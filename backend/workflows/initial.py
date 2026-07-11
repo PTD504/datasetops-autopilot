@@ -105,60 +105,13 @@ def run_initial_workflow(project_id: str):
                 warnings=warnings
             )
 
-        # Persist intermediate document understanding to DB
-        project.doc_understanding = report
-        db.commit()
-
-        transition_to(db, project, WorkflowState.SOURCE_ANALYZED)
-        db.commit()
-        log_workflow_event(db, project_id, "source_analysis_completed", f"Source analysis complete. Summary: {summary}")
-
-        # 3. Planning
-        raise_if_cancelled(db, project_id, "planning.before")
-        transition_to(db, project, WorkflowState.PLANNING)
-        db.commit()
-        log_workflow_event(db, project_id, "planning_started", "Intake planner agent run started.")
-
-        with log_agent_run(db, project_id, "IntakePlannerAgent", f"Generating benchmark plan for request: {project.benchmark_request[:200]}...") as agent_logger:
-            planner_agent = IntakePlannerAgent(db, project_id)
-            plan = planner_agent.run(project.benchmark_request, summary, warnings, source_report=report)
-            agent_logger.update(
-                decision_summary=f"Goal: {plan.goal[:100]}..., Total samples planned: {plan.sample_count.get('total') if isinstance(plan.sample_count, dict) else plan.sample_count}",
-                output_json={
-                    "plan_id": plan.id,
-                    "goal": plan.goal[:100],
-                    "categories": plan.categories,
-                    "sample_count": plan.sample_count
-                },
-                warnings=plan.source_warnings if hasattr(plan, "source_warnings") else []
-            )
-
-        # Log Benchmark Plan Draft Artifact
-        plan_total = plan.sample_count.get("total") if isinstance(plan.sample_count, dict) else plan.sample_count
-        log_agent_artifact(
-            db=db,
-            project_id=project_id,
-            artifact_type="benchmark_plan_draft",
-            title="Benchmark Plan Draft",
-            summary=f"Drafted benchmark plan targeting {plan_total} samples across categories: {', '.join(plan.categories or [])}.",
-            content_json={
-                "domain": "RAG Evaluation",
-                "language": plan.language or "English",
-                "sample_count": plan_total,
-                "categories": plan.categories or [],
-                "difficulty_distribution": plan.sample_count if isinstance(plan.sample_count, dict) else {},
-                "quality_rules": plan.quality_rules or [],
-                "warnings": plan.source_warnings or []
-            },
-            agent_run_id=agent_logger.run_id
-        )
-
         # 4. Source Coverage Audit (Phase 2)
         log_workflow_event(db, project_id, "source_coverage_audit_started", "Source coverage audit step started.")
         with log_agent_run(db, project_id, "SourceUnderstandingAgent (Phase 2)", "Coverage Audit") as audit_logger:
+            candidate_categories = report.get("recommended_categories", []) or report.get("strong_sections", [])
             audit_result = source_agent.run_coverage_audit(
                 chunks=project_chunks,
-                categories=plan.categories or [],
+                categories=candidate_categories,
                 doc_understanding=report,
                 db=db,
                 project_id=project_id
@@ -190,6 +143,54 @@ def run_initial_workflow(project_id: str):
         )
 
         log_workflow_event(db, project_id, "source_coverage_audit_completed", f"Source coverage audit complete. Summary: {final_summary}")
+
+        # Persist intermediate document understanding to DB
+        project.doc_understanding = final_report
+        db.commit()
+
+        transition_to(db, project, WorkflowState.SOURCE_ANALYZED)
+        db.commit()
+        log_workflow_event(db, project_id, "source_analysis_completed", f"Source analysis complete. Summary: {summary}")
+
+        # 3. Planning
+        raise_if_cancelled(db, project_id, "planning.before")
+        transition_to(db, project, WorkflowState.PLANNING)
+        db.commit()
+        log_workflow_event(db, project_id, "planning_started", "Intake planner agent run started.")
+
+        with log_agent_run(db, project_id, "IntakePlannerAgent", f"Generating benchmark plan for request: {project.benchmark_request[:200]}...") as agent_logger:
+            planner_agent = IntakePlannerAgent(db, project_id)
+            plan = planner_agent.run(project.benchmark_request, final_summary, final_warnings, source_report=final_report)
+            agent_logger.update(
+                decision_summary=f"Goal: {plan.goal[:100]}..., Total samples planned: {plan.sample_count.get('total') if isinstance(plan.sample_count, dict) else plan.sample_count}",
+                output_json={
+                    "plan_id": plan.id,
+                    "goal": plan.goal[:100],
+                    "categories": plan.categories,
+                    "sample_count": plan.sample_count
+                },
+                warnings=plan.source_warnings if hasattr(plan, "source_warnings") else []
+            )
+
+        # Log Benchmark Plan Draft Artifact
+        plan_total = plan.sample_count.get("total") if isinstance(plan.sample_count, dict) else plan.sample_count
+        log_agent_artifact(
+            db=db,
+            project_id=project_id,
+            artifact_type="benchmark_plan_draft",
+            title="Benchmark Plan Draft",
+            summary=f"Drafted benchmark plan targeting {plan_total} samples across categories: {', '.join(plan.categories or [])}.",
+            content_json={
+                "domain": "RAG Evaluation",
+                "language": plan.language or "English",
+                "sample_count": plan_total,
+                "categories": plan.categories or [],
+                "difficulty_distribution": plan.sample_count if isinstance(plan.sample_count, dict) else {},
+                "quality_rules": plan.quality_rules or [],
+                "warnings": plan.source_warnings or []
+            },
+            agent_run_id=agent_logger.run_id
+        )
 
         # Enforce budget/quota guardrails on plan creation
         enforce_quota_guardrails(db, project_id, raise_on_strict=False)

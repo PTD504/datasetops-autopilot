@@ -81,12 +81,31 @@ class IntakePlannerAgent(BaseAgent):
 
         response = self.llm.generate_json(prompt, system_prompt="You are an expert RAG Benchmark Planner. Output JSON.")
 
+        proposed_categories = response.get("categories", ["General"])
+
+        if coverage_by_category:
+            supported_set = {
+                cat for cat, info in coverage_by_category.items()
+                if info.get("coverage_level") in ("strong", "medium", "weak")
+            }
+            filtered_categories = [c for c in proposed_categories if c in supported_set]
+
+            if not filtered_categories:
+                filtered_categories = [
+                    cat for cat, info in coverage_by_category.items()
+                    if info.get("coverage_level") in ("strong", "medium", "weak")
+                ]
+        else:
+            filtered_categories = proposed_categories
+
+        stripped_categories = [c for c in proposed_categories if c not in filtered_categories]
+
         plan = BenchmarkPlan(
             project_id=self.project_id,
             goal=response.get("goal", "Default goal"),
             language=response.get("language", "English"),
             sample_count=response.get("sample_count", {"total": 10, "easy": 5, "medium": 3, "hard": 2}),
-            categories=response.get("categories", ["General"]),
+            categories=filtered_categories,
             quality_rules=response.get("quality_rules", ["Answerable samples must be grounded in the source documents. Intentional unanswerable samples are allowed when clearly labeled as unanswerable and the expected answer states that the documents do not contain enough information."]),
             source_summary=source_summary,
             source_warnings=source_warnings
@@ -112,7 +131,9 @@ class IntakePlannerAgent(BaseAgent):
             "low_coverage_categories": low_coverage,
             "unsupported_categories": unsupported,
             "warnings_considered": list(source_warnings or []),
-            "planning_adjustments": recommended_adjustments
+            "planning_adjustments": recommended_adjustments,
+            "proposed_categories": proposed_categories,
+            "stripped_categories": stripped_categories,
         }
         log_agent_artifact(
             db=self.db,
