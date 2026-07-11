@@ -36,6 +36,7 @@ interface MissionControlDashboardProps {
   loading: boolean;
   error: boolean;
   onStopWorkflow: () => void;
+  onResumeWorkflow: () => Promise<void>;
 }
 
 export default function MissionControlDashboard({ 
@@ -48,6 +49,7 @@ export default function MissionControlDashboard({
   loading,
   error,
   onStopWorkflow,
+  onResumeWorkflow,
 }: MissionControlDashboardProps) {
   const {
     demoMode,
@@ -59,6 +61,32 @@ export default function MissionControlDashboard({
   } = useMissionControlStore();
 
   const [samplesCount, setSamplesCount] = useState(3);
+  const [isResuming, setIsResuming] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  const handleResumeWorkflow = async () => {
+    setIsResuming(true);
+    try {
+      if (demoMode) {
+        console.log("Resume requested in demo mode");
+        setToast({ message: "Workflow resumed. Continuing execution...", type: "success" });
+      } else {
+        await onResumeWorkflow();
+        setToast({ message: "Workflow resumed. Continuing execution...", type: "success" });
+      }
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to resume workflow.", type: "error" });
+    } finally {
+      setIsResuming(false);
+    }
+  };
 
   const handleToggleDemoMode = () => {
     setDemoMode(!demoMode);
@@ -185,6 +213,9 @@ export default function MissionControlDashboard({
         onToggleDemoMode={handleToggleDemoMode}
         onStopWorkflow={handleStopWorkflow}
         repairsCount={repairsCount}
+        traces={activeTraces}
+        onResumeWorkflow={handleResumeWorkflow}
+        isResuming={isResuming}
       />
 
       {/* Contextual Workflow Banner */}
@@ -235,6 +266,27 @@ export default function MissionControlDashboard({
 
       {/* Completion success overlay */}
       <CompletionOverlay />
+
+      {/* Glassmorphic Toast Notification Overlay */}
+      {toast && (
+        <div className="fixed top-5 right-5 z-[100] animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className={`flex items-center gap-2.5 px-4.5 py-3 rounded-2xl border backdrop-blur-md shadow-2xl transition-all duration-300 ${
+            toast.type === "success" 
+              ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.15)]" 
+              : "bg-rose-950/40 border-rose-500/30 text-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.15)]"
+          }`}>
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                toast.type === "success" ? "bg-emerald-400" : "bg-rose-400"
+              }`}></span>
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                toast.type === "success" ? "bg-emerald-500" : "bg-rose-500"
+              }`}></span>
+            </span>
+            <span className="text-xs font-bold font-sans tracking-wide text-white">{toast.message}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

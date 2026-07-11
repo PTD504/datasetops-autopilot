@@ -9,7 +9,8 @@ export type NodeUiStatus =
   | "Completed"
   | "Waiting"
   | "Repair Requested"
-  | "Failed";
+  | "Failed"
+  | "Paused";
 
 interface WorkflowNodeProps {
   node: AgentNodeConfig;
@@ -86,6 +87,10 @@ export default function WorkflowNode({
     statusDotBg = "bg-rose-600";
     statusLabel = "Failed";
     cardBorderClass = "border-rose-500/40 bg-rose-950/20 text-rose-200 hover:-translate-y-0.5 hover:border-rose-550";
+  } else if (status === "Paused") {
+    statusDotBg = "bg-amber-500 animate-pulse";
+    statusLabel = "Paused";
+    cardBorderClass = "border-amber-500/40 bg-amber-950/20 text-amber-200 hover:-translate-y-0.5 hover:border-amber-550 shadow-[0_0_15px_rgba(245,158,11,0.15)]";
   }
 
   // Override border if highlighted (Checkpoint Glow)

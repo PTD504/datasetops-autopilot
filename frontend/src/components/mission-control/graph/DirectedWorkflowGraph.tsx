@@ -39,9 +39,10 @@ export default function DirectedWorkflowGraph({
     }
   }, [traces, hasEvaluated]);
 
+  const agentRuns = traces.filter((t) => t.type === "agent_run");
+  const latestAgentRun = agentRuns.length > 0 ? agentRuns[agentRuns.length - 1] : null;
+
   const getActiveAgentInCooperation = () => {
-    const agentRuns = traces.filter((t) => t.type === "agent_run");
-    const latestAgentRun = agentRuns.length > 0 ? agentRuns[agentRuns.length - 1] : null;
     if (latestAgentRun) {
       return (latestAgentRun.data as any).agent_name;
     }
@@ -49,6 +50,35 @@ export default function DirectedWorkflowGraph({
   };
 
   const activeAgentInCooperation = getActiveAgentInCooperation();
+
+  const getLastActiveNodeId = () => {
+    if (latestAgentRun) {
+      const name = (latestAgentRun.data as any).agent_name || "";
+      if (name.includes("Chunker") || name.includes("Embedder")) return "preprocessing";
+      if (name.includes("SourceUnderstanding")) return "source_understanding";
+      if (name.includes("IntakePlanner")) return "intake_planner";
+      if (name.includes("BenchmarkGenerator")) return "generator";
+      if (name.includes("QualityEvaluator")) return "evaluator";
+      if (name.includes("ExportReport")) return "exporter";
+    }
+
+    // fallback mapping based on events
+    const workflowEvents = traces.filter((t) => t.type === "workflow_event");
+    if (workflowEvents.length > 0) {
+      const nonFailedEvents = [...workflowEvents].reverse();
+      for (const event of nonFailedEvents) {
+        const type = (event.data as any).event_type || "";
+        if (type.includes("chunk") || type.includes("embed") || type.includes("preprocess")) return "preprocessing";
+        if (type.includes("source")) return "source_understanding";
+        if (type.includes("plan")) return "intake_planner";
+        if (type.includes("generator") || type.includes("generating") || type.includes("validate") || type.includes("validating")) return "generator";
+        if (type.includes("eval") || type.includes("repair")) return "evaluator";
+        if (type.includes("export")) return "exporter";
+      }
+    }
+
+    return "preprocessing";
+  };
 
   const derivedState = getWorkflowDerivedState(currentWorkflowStatus, projectId);
   const highlightedNodeId = derivedState.highlightedNodeId;
@@ -140,13 +170,14 @@ export default function DirectedWorkflowGraph({
       return "Completed";
     }
 
-    // 2. Failed state
+    // 2. Failed state (interrupted/paused)
     if (currentWorkflowStatus === "FAILED") {
-      const activeNode = AGENT_NODES.find((n) => n.workflowStates.includes(currentWorkflowStatus));
-      if (activeNode && nodeId === activeNode.id) {
-        return "Failed";
+      const lastActiveId = getLastActiveNodeId();
+      if (nodeId === lastActiveId) {
+        return "Paused";
       }
-      return nodeOrder < (activeNode?.pipelineOrder || 0) ? "Completed" : "Pending";
+      const lastActiveNode = AGENT_NODES.find((n) => n.id === lastActiveId);
+      return nodeOrder < (lastActiveNode?.pipelineOrder || 0) ? "Completed" : "Pending";
     }
 
     // 3. Cooperation state checking (taking turns)

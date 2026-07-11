@@ -90,7 +90,7 @@ export default function ProjectStatus() {
     }
 
     poll()
-    if (isFinished || usage?.cancel_requested) {
+    if (isFinished) {
       return () => {
         stopped = true
       }
@@ -101,7 +101,7 @@ export default function ProjectStatus() {
       stopped = true
       clearInterval(interval)
     }
-  }, [fetchStatus, isFinished, usage?.cancel_requested])
+  }, [fetchStatus, isFinished])
 
   const handleStop = async () => {
     try {
@@ -111,6 +111,16 @@ export default function ProjectStatus() {
     } catch (e) {
       console.error("Failed to stop workflow", e)
     }
+  }
+
+  const handleResume = async () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+    const res = await fetch(`${apiUrl}/api/projects/${id}/resume`, { method: "POST" })
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || "Failed to resume workflow");
+    }
+    fetchStatus()
   }
 
   return (
@@ -139,6 +149,7 @@ export default function ProjectStatus() {
             loading={traceLoading}
             error={traceError}
             onStopWorkflow={handleStop}
+            onResumeWorkflow={handleResume}
           />
         </MissionControlProvider>
       </main>

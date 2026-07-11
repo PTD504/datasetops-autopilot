@@ -5,6 +5,7 @@ export interface WorkflowDerivedState {
   shouldDimGraph: boolean;
   statusBadgeLabel?: string;
   isPaused: boolean;
+  isResumable: boolean;
   bannerTitle?: string;
   bannerDescription: string;
   bannerActionLabel?: string;
@@ -18,6 +19,7 @@ interface StateConfig {
   shouldDimGraph: boolean;
   statusBadgeLabel?: string;
   isPaused: boolean;
+  isResumable?: boolean;
   bannerTitle?: string;
   bannerDescription: string | ((context: { sampleCount: number }) => string);
   bannerActionLabel?: string;
@@ -221,10 +223,12 @@ const STATE_CONFIG_REGISTRY: Record<WorkflowStatus, StateConfig> = {
   FAILED: {
     highlightedNodeId: null,
     shouldDimGraph: false,
-    isPaused: false,
-    bannerTitle: "Failed",
-    bannerDescription: "Workflow failed due to an error.",
-    bannerType: "none",
+    statusBadgeLabel: "Interrupted",
+    isPaused: true,
+    isResumable: true,
+    bannerTitle: "Workflow Interrupted",
+    bannerDescription: "Workflow stopped before completion. Resume will continue from the last completed checkpoint.",
+    bannerType: "warning",
   },
   CANCELLED: {
     highlightedNodeId: null,
@@ -262,6 +266,7 @@ export function getWorkflowDerivedState(
     shouldDimGraph: config.shouldDimGraph,
     statusBadgeLabel: config.statusBadgeLabel,
     isPaused: config.isPaused,
+    isResumable: !!config.isResumable,
     bannerTitle: config.bannerTitle,
     bannerDescription: description,
     bannerActionLabel: config.bannerActionLabel,

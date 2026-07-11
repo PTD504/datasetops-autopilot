@@ -7,10 +7,13 @@ import {
   Sparkles, 
   Square,
   Clock,
-  RotateCcw
+  RotateCcw,
+  Play,
+  Loader2
 } from "lucide-react";
-import { WorkflowStatus } from "../../../../../components/mission-control/types";
+import { WorkflowStatus, TraceItem } from "../../../../../components/mission-control/types";
 import { useMissionControlStore } from "../../../../../components/mission-control/store/useMissionControlStore";
+import { getWorkflowDerivedState } from "../../../../../components/mission-control/workflowStateHelpers";
 
 interface ControlHeaderProps {
   projectId: string;
@@ -21,6 +24,9 @@ interface ControlHeaderProps {
   onToggleDemoMode: () => void;
   onStopWorkflow: () => void;
   repairsCount?: number;
+  traces?: TraceItem[];
+  onResumeWorkflow?: () => void;
+  isResuming?: boolean;
 }
 
 export default function ControlHeader({
@@ -32,6 +38,9 @@ export default function ControlHeader({
   onToggleDemoMode,
   onStopWorkflow,
   repairsCount,
+  traces = [],
+  onResumeWorkflow,
+  isResuming = false,
 }: ControlHeaderProps) {
   
   // Define all possible states in chronological order to calculate progress
@@ -45,11 +54,51 @@ export default function ControlHeader({
   ];
 
   const { isDownloaded } = useMissionControlStore();
+  const derivedState = getWorkflowDerivedState(workflowStatus, projectId);
 
-  const currentStateIndex = allStates.indexOf(workflowStatus);
+  const getLastActiveState = (): WorkflowStatus => {
+    if (workflowStatus !== "FAILED") return workflowStatus;
+    
+    if (traces && traces.length > 0) {
+      const agentRuns = traces.filter((t) => t.type === "agent_run");
+      if (agentRuns.length > 0) {
+        const latestRun = agentRuns[agentRuns.length - 1].data as any;
+        const name = latestRun.agent_name || "";
+        if (name.includes("Chunker") || name.includes("Embedder")) return "EMBEDDING";
+        if (name.includes("SourceUnderstanding")) return "SOURCE_ANALYZED";
+        if (name.includes("IntakePlanner")) return "PLAN_APPROVED";
+        if (name.includes("BenchmarkGenerator")) return "GENERATING";
+        if (name.includes("QualityEvaluator")) return "EVALUATING";
+        if (name.includes("ExportReport")) return "EXPORTING";
+      }
+
+      const workflowEvents = traces.filter((t) => t.type === "workflow_event");
+      if (workflowEvents.length > 0) {
+        const nonFailedEvents = [...workflowEvents].reverse();
+        for (const event of nonFailedEvents) {
+          const type = (event.data as any).event_type || "";
+          if (type.includes("chunk")) return "CHUNKING";
+          if (type.includes("embed")) return "EMBEDDING";
+          if (type.includes("source")) return "SOURCE_ANALYZED";
+          if (type.includes("plan")) return "PLAN_APPROVED";
+          if (type.includes("generator") || type.includes("generating")) return "GENERATING";
+          if (type.includes("validate") || type.includes("validating")) return "VALIDATING";
+          if (type.includes("eval")) return "EVALUATING";
+          if (type.includes("repair")) return "REPAIRING";
+          if (type.includes("export")) return "EXPORTING";
+        }
+      }
+    }
+    
+    return "CREATED";
+  };
+
+  const activeProgressStatus = getLastActiveState();
+
+  const currentStateIndex = allStates.indexOf(activeProgressStatus);
   let progressValue = 0;
   if (currentStateIndex >= 0) {
-    if (workflowStatus === "EXPORT_READY" || workflowStatus === "DONE") {
+    if (activeProgressStatus === "EXPORT_READY" || activeProgressStatus === "DONE") {
       progressValue = isDownloaded ? 100 : 95;
     } else {
       const rawProgress = ((currentStateIndex + 1) / allStates.length) * 100;
@@ -120,18 +169,18 @@ export default function ControlHeader({
     }
   };
 
-  const currentAgentName = getActiveAgent(workflowStatus);
-  const agentColorClass = getAgentColorClass(workflowStatus);
+  const currentAgentName = getActiveAgent(activeProgressStatus);
+  const agentColorClass = getAgentColorClass(activeProgressStatus);
 
   // Deriving repair count
   const activeRepairsCount = repairsCount !== undefined
     ? repairsCount
-    : (["EVALUATING", "REPAIRING", "WAITING_FOR_SAMPLE_REVIEW", "EXPORTING", "EXPORT_READY", "DONE"].includes(workflowStatus) ? 2 : 0);
+    : (["EVALUATING", "REPAIRING", "WAITING_FOR_SAMPLE_REVIEW", "EXPORTING", "EXPORT_READY", "DONE"].includes(activeProgressStatus) ? 2 : 0);
 
   // Determine status color badge
   let statusBadgeColor = "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
   if (workflowStatus === "FAILED") {
-    statusBadgeColor = "bg-rose-500/10 text-rose-400 border-rose-500/20";
+    statusBadgeColor = "bg-amber-500/10 text-amber-400 border-amber-500/20";
   } else if (workflowStatus === "DONE" || workflowStatus === "EXPORT_READY") {
     statusBadgeColor = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
   } else if (workflowStatus === "CANCELLED") {
@@ -161,7 +210,7 @@ export default function ControlHeader({
               {projectName || "Autopilot Mission Control"}
             </h1>
             <span className={`text-[9px] border px-2 py-0.2 rounded-full font-mono font-semibold uppercase tracking-wider ${statusBadgeColor}`}>
-              {workflowStatus}
+              {derivedState.statusBadgeLabel || workflowStatus}
             </span>
             {cancelRequested && (
               <span className="text-[9px] text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.2 rounded-full font-mono font-bold animate-pulse">
@@ -185,16 +234,35 @@ export default function ControlHeader({
             {demoMode ? "Demo" : "Live"}
           </button>
 
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={onStopWorkflow}
-            disabled={workflowStatus === "DONE" || workflowStatus === "FAILED" || cancelRequested}
-            className="rounded-xl flex items-center gap-1 h-8 font-bold border border-rose-500/20 active:scale-95 shadow-[0_0_10px_rgba(239,68,68,0.15)] px-2.5 text-[10px]"
-          >
-            <Square size={8} className="fill-current" />
-            {cancelRequested ? "Stopping..." : "Stop"}
-          </Button>
+          {derivedState.isResumable ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onResumeWorkflow}
+              disabled={isResuming}
+              className="rounded-xl flex items-center gap-1.5 h-8 font-bold border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 active:scale-95 shadow-[0_0_10px_rgba(16,185,129,0.15)] px-3 text-[10px] transition-all"
+            >
+              {isResuming ? (
+                <Loader2 size={11} className="animate-spin text-emerald-400" />
+              ) : (
+                <Play size={11} className="fill-current text-emerald-400" />
+              )}
+              {isResuming ? "Resuming..." : "Resume"}
+            </Button>
+          ) : (
+            !["DONE", "EXPORT_READY", "WAITING_FOR_PLAN_APPROVAL", "WAITING_FOR_SAMPLE_REVIEW", "CREATED", "LOADING"].includes(workflowStatus) && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={onStopWorkflow}
+                disabled={cancelRequested}
+                className="rounded-xl flex items-center gap-1 h-8 font-bold border border-rose-500/20 active:scale-95 shadow-[0_0_10px_rgba(239,68,68,0.15)] px-2.5 text-[10px]"
+              >
+                <Square size={8} className="fill-current" />
+                {cancelRequested ? "Stopping..." : "Stop"}
+              </Button>
+            )
+          )}
         </div>
       </div>
 
