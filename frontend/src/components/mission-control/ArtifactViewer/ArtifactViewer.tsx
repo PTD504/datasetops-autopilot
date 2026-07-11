@@ -147,7 +147,7 @@ export default function ArtifactViewer({
     <div
       ref={backdropRef}
       onClick={handleBackdropClick}
-      className="fixed inset-0 z-50 bg-[#030014]/75 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 select-none animate-[MCFadeIn_0.2s_ease-out_forwards]"
+      className="fixed inset-0 z-[60] bg-[#030014]/75 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 select-none animate-[MCFadeIn_0.2s_ease-out_forwards]"
     >
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes MCFadeIn {

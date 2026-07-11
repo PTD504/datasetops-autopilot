@@ -24,7 +24,7 @@ export default function IntakePlannerViewer({
   workflowStatus,
   traces,
 }: IntakePlannerViewerProps) {
-  const { setIsPlanReviewOpen } = useMissionControlStore();
+  const { setIsPlanReviewOpen, setSelectedNodeId } = useMissionControlStore();
 
   // Extract and resolve artifacts/run data from traces
   const planData = resolvePlanArtifact(traces);
@@ -76,7 +76,10 @@ export default function IntakePlannerViewer({
             <span className="font-semibold text-slate-250">Human Checkpoint: Review, edit and approve the benchmark plan before generation begins.</span>
           </div>
           <button 
-            onClick={() => setIsPlanReviewOpen(true)}
+            onClick={() => {
+              setIsPlanReviewOpen(true);
+              setSelectedNodeId(null);
+            }}
             className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] uppercase tracking-wider transition-colors cursor-pointer shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.25)] active:scale-95 transition-transform"
           >
             Review & Edit Plan
@@ -103,7 +106,10 @@ export default function IntakePlannerViewer({
           <DatasetSection 
             totalCount={typeof planData.sample_count === "number" ? planData.sample_count : undefined}
             difficultyDistribution={planData.difficulty_distribution}
-            categories={planData.categories}
+            categories={Array.from(new Set([
+              ...(planData.categories || []),
+              ...(sourceReportData?.coverage_by_category ? Object.keys(sourceReportData.coverage_by_category) : [])
+            ]))}
             coverageByCategory={sourceReportData?.coverage_by_category}
           />
           <WarningsSection 
