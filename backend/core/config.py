@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = f"sqlite:///{BACKEND_DIR.as_posix()}/datasetops.db" # fallback
     BACKEND_CORS_ORIGINS: str = '["http://localhost:3000"]'
 
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 100
+
     QWEN_API_KEY: Optional[str] = None
     QWEN_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     QWEN_MODEL: str = "qwen-plus"

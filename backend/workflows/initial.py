@@ -37,9 +37,23 @@ def run_initial_workflow(project_id: str):
         # 1. Chunking
         transition_to(db, project, WorkflowState.CHUNKING)
         db.commit()
-        log_workflow_event(db, project_id, "chunking_started", "Document chunking step started.")
+        
+        from backend.core.config import settings
+        log_workflow_event(
+            db,
+            project_id,
+            "chunking_started",
+            "Document chunking step started.",
+            metadata={
+                "chunk_size": settings.CHUNK_SIZE,
+                "chunk_overlap": settings.CHUNK_OVERLAP
+            }
+        )
 
-        chunker = DocumentChunker()
+        chunker = DocumentChunker(
+            chunk_size=settings.CHUNK_SIZE,
+            overlap=settings.CHUNK_OVERLAP
+        )
         docs = db.query(Document).filter(Document.project_id == project_id).all()
         total_chunks = 0
         for doc in docs:
