@@ -16,7 +16,7 @@ export default function ChunkingSection({
   chunkOverlap,
   chunkingLatency,
 }: ChunkingSectionProps) {
-  const durationSec = chunkingLatency ? (chunkingLatency / 1000).toFixed(2) : undefined;
+  const durationSec = chunkingLatency !== undefined ? (chunkingLatency / 1000).toFixed(2) : undefined;
 
   return (
     <Section title="Parsing & Chunks Segmentation" icon={<Layers size={12} className="text-cyan-400" />}>

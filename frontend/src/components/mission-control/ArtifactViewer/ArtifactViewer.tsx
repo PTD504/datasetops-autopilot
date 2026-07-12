@@ -100,6 +100,37 @@ export default function ArtifactViewer({
       const secs = totalDurationSec % 60;
       durationText = `${mins}m ${secs}s`;
     }
+  } else if (nodeId === "preprocessing") {
+    const startEvents = traces.filter(
+      (t) =>
+        t.type === "workflow_event" &&
+        ((t.data as any).event_type === "chunking_started" ||
+          (t.data as any).event_type === "embedding_started")
+    );
+    const endEvents = traces.filter(
+      (t) =>
+        t.type === "workflow_event" &&
+        ((t.data as any).event_type === "chunking_completed" ||
+          (t.data as any).event_type === "embedding_completed")
+    );
+
+    if (startEvents.length > 0 && endEvents.length > 0) {
+      const startTimes = startEvents.map((e) => new Date(e.timestamp).getTime());
+      const endTimes = endEvents.map((e) => new Date(e.timestamp).getTime());
+      const minStart = Math.min(...startTimes);
+      const maxEnd = Math.max(...endTimes);
+      const totalDurationSec = Math.floor((maxEnd - minStart) / 1000);
+
+      if (totalDurationSec >= 0) {
+        if (totalDurationSec < 60) {
+          durationText = `${totalDurationSec}s`;
+        } else {
+          const mins = Math.floor(totalDurationSec / 60);
+          const secs = totalDurationSec % 60;
+          durationText = `${mins}m ${secs}s`;
+        }
+      }
+    }
   }
 
   // 2. Count LLM calls from tool calls of all matching runs

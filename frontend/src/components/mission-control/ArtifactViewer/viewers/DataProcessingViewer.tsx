@@ -77,6 +77,8 @@ export default function DataProcessingViewer({
           <ChunkingSection 
             totalChunks={prepData.totalChunks}
             chunkingLatency={prepData.chunkingLatency}
+            chunkSize={prepData.chunkSize}
+            chunkOverlap={prepData.chunkOverlap}
           />
           <EmbeddingSection 
             model={prepData.embeddingModel}

@@ -12,6 +12,8 @@ export interface PreprocessingSummary {
   status: "idle" | "running" | "completed" | "failed";
   docs: PreprocessingDoc[];
   totalChunks: number;
+  chunkSize?: number;
+  chunkOverlap?: number;
   embeddingModel?: string;
   embeddingMode?: string;
   embeddingLatency?: number;
@@ -19,14 +21,38 @@ export interface PreprocessingSummary {
   warnings: string[];
 }
 
+const DEFAULT_CHUNK_SIZE = 1000;
+const DEFAULT_CHUNK_OVERLAP = 100;
+
 export function resolvePreprocessing(traces: TraceItem[], workflowStatus: string): PreprocessingSummary {
   const docs: PreprocessingDoc[] = [];
   let totalChunks = 0;
-  let chunkingLatency = 0;
+  let chunkingLatency: number | undefined = undefined;
   let embeddingModel: string | undefined = undefined;
   let embeddingMode: string | undefined = undefined;
   let embeddingLatency: number | undefined = undefined;
   const warnings: string[] = [];
+
+  // Parse chunking started event to extract configurations
+  const chunkingStarted = traces.find(
+    (t) => t.type === "workflow_event" && (t.data as WorkflowEvent).event_type === "chunking_started"
+  );
+
+  let chunkSize = DEFAULT_CHUNK_SIZE;
+  let chunkOverlap = DEFAULT_CHUNK_OVERLAP;
+
+  if (chunkingStarted) {
+    const event = chunkingStarted.data as WorkflowEvent;
+    const meta = event.event_metadata;
+    if (meta) {
+      if (typeof meta.chunk_size === "number") {
+        chunkSize = meta.chunk_size;
+      }
+      if (typeof meta.chunk_overlap === "number") {
+        chunkOverlap = meta.chunk_overlap;
+      }
+    }
+  }
 
   // Parse tool calls for chunker
   const chunkerCalls = traces.filter(
@@ -58,7 +84,10 @@ export function resolvePreprocessing(traces: TraceItem[], workflowStatus: string
     if (chunkCount) {
       totalChunks += chunkCount;
     }
-    if (call.latency_ms) {
+    if (call.latency_ms !== undefined && call.latency_ms !== null) {
+      if (chunkingLatency === undefined) {
+        chunkingLatency = 0;
+      }
       chunkingLatency += call.latency_ms;
     }
     if (call.status !== "success" && call.output_summary) {
@@ -102,10 +131,12 @@ export function resolvePreprocessing(traces: TraceItem[], workflowStatus: string
     status,
     docs,
     totalChunks,
+    chunkSize,
+    chunkOverlap,
     embeddingModel,
     embeddingMode,
     embeddingLatency,
-    chunkingLatency: chunkingLatency || undefined,
+    chunkingLatency,
     warnings,
   };
 }
