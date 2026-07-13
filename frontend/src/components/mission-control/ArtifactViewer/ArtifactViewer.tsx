@@ -208,7 +208,7 @@ export default function ArtifactViewer({
 
       {/* Large Modal Container */}
       <div 
-        className="bg-gradient-to-b from-[#090d2e]/95 to-[#05071a]/95 border border-white/[0.08] backdrop-blur-xl shadow-[0_0_50px_-12px_rgba(99,102,241,0.15)] rounded-3xl w-full h-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden pointer-events-auto animate-[MCScaleIn_0.22s_ease-out_forwards] relative"
+        className="bg-gradient-to-b from-[#090d2e]/95 to-[#05071a]/95 border border-white/[0.08] shadow-[0_0_50px_-12px_rgba(99,102,241,0.15)] rounded-3xl w-full h-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden pointer-events-auto animate-[MCScaleIn_0.22s_ease-out_forwards] relative"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Left colored border stripe accent */}
