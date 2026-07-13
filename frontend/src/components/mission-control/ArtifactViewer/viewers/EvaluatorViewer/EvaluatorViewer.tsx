@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useMissionControlStore } from "../../../store/useMissionControlStore";
 import { useEvaluatorSamples, EvaluatorSample } from "./useEvaluatorSamples";
 import SummaryMetrics from "./components/SummaryMetrics";
@@ -33,6 +33,7 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
 
   // Export State
   const [isExporting, setIsExporting] = useState(false);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   // 1. Default filter: if WAITING_FOR_SAMPLE_REVIEW, show human_review only if there are pending reviews, otherwise show all
   const [hasInitializedFilter, setHasInitializedFilter] = useState(false);
@@ -92,6 +93,59 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
     };
   }, [editingSample, editQuestion, editAnswer, editCategory, editDifficulty, saving]);
 
+  // Filter samples based on search query and decision (memoized)
+  const filteredSamples = useMemo(() => {
+    return samples.filter((sample) => {
+      const matchesSearch =
+        (sample.question || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (sample.expected_answer || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (sample.category || "").toLowerCase().includes(searchQuery.toLowerCase());
+        
+      let matchesDecision = false;
+      if (selectedDecision === "all") {
+        matchesDecision = true;
+      } else if (selectedDecision === "pass") {
+        matchesDecision = sample.decision === "pass" && sample.retry_count === 0;
+      } else if (selectedDecision === "repair") {
+        matchesDecision = sample.decision === "repair" || sample.retry_count > 0;
+      } else if (selectedDecision === "human_review") {
+        // Only show pending human reviews
+        matchesDecision = sample.decision === "human_review" &&
+                          sample.status !== "APPROVED" &&
+                          sample.status !== "PASS" &&
+                          sample.status !== "REJECTED";
+      } else {
+        matchesDecision = (sample.decision || "").toLowerCase() === selectedDecision.toLowerCase();
+      }
+        
+      return matchesSearch && matchesDecision;
+    });
+  }, [samples, searchQuery, selectedDecision]);
+
+  // Calculate pagination details (memoized)
+  const totalPages = useMemo(() => Math.ceil(filteredSamples.length / itemsPerPage), [filteredSamples.length]);
+  const paginatedSamples = useMemo(() => {
+    return filteredSamples.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    );
+  }, [filteredSamples, currentPage]);
+
+  // Compute pending reviews count (only unresolved human_review samples) (memoized)
+  const pendingCount = useMemo(() => {
+    return samples.filter((s) => s.decision === "human_review" && s.status !== "APPROVED" && s.status !== "PASS" && s.status !== "REJECTED").length;
+  }, [samples]);
+
+  // Compute visible pending reviews in the current filtered list (respecting search & filter) (memoized)
+  const visiblePendingReviews = useMemo(() => {
+    return filteredSamples.filter(
+      (s) => s.decision === "human_review" &&
+             s.status !== "APPROVED" &&
+             s.status !== "PASS" &&
+             s.status !== "REJECTED"
+    );
+  }, [filteredSamples]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3 select-none">
@@ -134,6 +188,13 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
 
   // Helper to approve sample
   const handleApprove = async (sampleId: string) => {
+    if (demoMode) {
+      setSamples((prev) => prev.map((s) => s.id === sampleId ? { ...s, status: "APPROVED" } : s));
+      if (selectedDecision === "human_review") {
+        scrollToTop();
+      }
+      return;
+    }
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sampleId}/approve`, {
@@ -156,6 +217,13 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
 
   // Helper to reject sample
   const handleReject = async (sampleId: string) => {
+    if (demoMode) {
+      setSamples((prev) => prev.map((s) => s.id === sampleId ? { ...s, status: "REJECTED" } : s));
+      if (selectedDecision === "human_review") {
+        scrollToTop();
+      }
+      return;
+    }
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sampleId}/reject`, {
@@ -173,6 +241,68 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
     } catch (e) {
       console.error(e);
       alert("Error rejecting sample.");
+    }
+  };
+
+  // Helper for bulk actions
+  const handleBulkAction = async (action: "approve" | "reject") => {
+    if (visiblePendingReviews.length === 0) return;
+
+    const actionLabel = action === "approve" ? "Approve" : "Reject";
+    const confirmed = window.confirm(
+      `${actionLabel} all ${visiblePendingReviews.length} visible Human Review samples?`
+    );
+    if (!confirmed) return;
+
+    setIsBulkProcessing(true);
+
+    try {
+      if (demoMode) {
+        // Mock state updates
+        setSamples((prev) => {
+          const updateIds = new Set(visiblePendingReviews.map((s) => s.id));
+          return prev.map((s) => {
+            if (updateIds.has(s.id)) {
+              return { ...s, status: action === "approve" ? "APPROVED" : "REJECTED" };
+            }
+            return s;
+          });
+        });
+      } else {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const promises = visiblePendingReviews.map(async (sample) => {
+          const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sample.id}/${action}`, {
+            method: "POST"
+          });
+          if (!res.ok) {
+            throw new Error(`Failed to ${action} sample ${sample.id}`);
+          }
+          return res.json();
+        });
+
+        const results = await Promise.all(promises);
+        
+        // Single state update
+        setSamples((prev) => {
+          const resultMap = new Map(results.map((r) => [r.id, r.status]));
+          return prev.map((s) => {
+            if (resultMap.has(s.id)) {
+              return { ...s, status: resultMap.get(s.id) };
+            }
+            return s;
+          });
+        });
+      }
+      
+      // Auto scroll to top if we are filtering by human_review and cleared it
+      if (selectedDecision === "human_review") {
+        scrollToTop();
+      }
+    } catch (e) {
+      console.error(e);
+      alert(`Error during bulk ${action}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setIsBulkProcessing(false);
     }
   };
 
@@ -253,43 +383,6 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
     }
   };
 
-  // Filter samples based on search query and decision
-  const filteredSamples = samples.filter((sample) => {
-    const matchesSearch =
-      (sample.question || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (sample.expected_answer || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (sample.category || "").toLowerCase().includes(searchQuery.toLowerCase());
-      
-    let matchesDecision = false;
-    if (selectedDecision === "all") {
-      matchesDecision = true;
-    } else if (selectedDecision === "pass") {
-      matchesDecision = sample.decision === "pass" && sample.retry_count === 0;
-    } else if (selectedDecision === "repair") {
-      matchesDecision = sample.decision === "repair" || sample.retry_count > 0;
-    } else if (selectedDecision === "human_review") {
-      // Only show pending human reviews
-      matchesDecision = sample.decision === "human_review" &&
-                        sample.status !== "APPROVED" &&
-                        sample.status !== "PASS" &&
-                        sample.status !== "REJECTED";
-    } else {
-      matchesDecision = (sample.decision || "").toLowerCase() === selectedDecision.toLowerCase();
-    }
-      
-    return matchesSearch && matchesDecision;
-  });
-
-  // Calculate pagination details
-  const totalPages = Math.ceil(filteredSamples.length / itemsPerPage);
-  const paginatedSamples = filteredSamples.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  // Compute pending reviews count (only unresolved human_review samples)
-  const pendingCount = samples.filter((s) => s.decision === "human_review" && s.status !== "APPROVED" && s.status !== "PASS" && s.status !== "REJECTED").length;
-
   // Check if the current modal data differs from original
   const isDirty = editingSample ? (
     editQuestion !== editingSample.question ||
@@ -365,6 +458,44 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
               })}
             </div>
           </div>
+
+          {/* Bulk Actions Panel */}
+          {visiblePendingReviews.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-indigo-500/[0.03] border border-indigo-500/10 p-3.5 rounded-2xl select-none animate-[fadeIn_0.2s_ease-out] will-change-transform">
+              <div className="flex items-center gap-2 text-left">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse shrink-0"></span>
+                <span className="text-xs text-slate-300">
+                  Bulk Actions available for <strong className="text-indigo-300 font-bold font-mono">{visiblePendingReviews.length}</strong> pending review{visiblePendingReviews.length > 1 ? "s" : ""} in this view
+                </span>
+              </div>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <button
+                  onClick={() => handleBulkAction("approve")}
+                  disabled={isBulkProcessing}
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 disabled:opacity-30 disabled:pointer-events-none text-[10px] font-mono font-extrabold uppercase tracking-wider transition-all cursor-pointer active:scale-95 flex items-center gap-1 shadow-[0_0_12px_rgba(16,185,129,0.05)]"
+                >
+                  {isBulkProcessing ? (
+                    <RefreshCw size={11} className="animate-spin" />
+                  ) : (
+                    <Check size={11} className="stroke-[3]" />
+                  )}
+                  Approve All
+                </button>
+                <button
+                  onClick={() => handleBulkAction("reject")}
+                  disabled={isBulkProcessing}
+                  className="px-3.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 disabled:opacity-30 disabled:pointer-events-none text-[10px] font-mono font-extrabold uppercase tracking-wider transition-all cursor-pointer active:scale-95 flex items-center gap-1 shadow-[0_0_12px_rgba(244,63,94,0.05)]"
+                >
+                  {isBulkProcessing ? (
+                    <RefreshCw size={11} className="animate-spin" />
+                  ) : (
+                    <X size={11} className="stroke-[3]" />
+                  )}
+                  Reject All
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Cards Stack */}
           <div className="space-y-4">
