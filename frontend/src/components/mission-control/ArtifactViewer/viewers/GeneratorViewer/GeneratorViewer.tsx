@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useMissionControlStore } from "../../../store/useMissionControlStore";
 import { useGeneratorSamples } from "./useGeneratorSamples";
 import SampleCard from "./components/SampleCard";
@@ -20,6 +20,39 @@ export default function GeneratorViewer({ projectId }: GeneratorViewerProps) {
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Calculate difficulty and chunk counts (memoized)
+  const totalCount = samples.length;
+  const easyCount = useMemo(() => samples.filter((s) => s.difficulty?.toLowerCase() === "easy").length, [samples]);
+  const mediumCount = useMemo(() => samples.filter((s) => s.difficulty?.toLowerCase() === "medium").length, [samples]);
+  const hardCount = useMemo(() => samples.filter((s) => s.difficulty?.toLowerCase() === "hard").length, [samples]);
+  
+  const uniqueCategories = useMemo(() => new Set(samples.map((s) => s.category)).size, [samples]);
+  const totalChunksReferenced = useMemo(() => {
+    return new Set(samples.flatMap((s) => s.evidence?.map((e) => e.id) || [])).size;
+  }, [samples]);
+
+  // Filter logic (memoized)
+  const filteredSamples = useMemo(() => {
+    return samples.filter((sample) => {
+      const matchesSearch =
+        (sample.question || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (sample.expected_answer || "").toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesDifficulty =
+        selectedDifficulty === "all" ||
+        (sample.difficulty || "").toLowerCase() === selectedDifficulty.toLowerCase();
+      return matchesSearch && matchesDifficulty;
+    });
+  }, [samples, searchQuery, selectedDifficulty]);
+
+  // Pagination calculations (memoized)
+  const totalPages = useMemo(() => Math.ceil(filteredSamples.length / itemsPerPage), [filteredSamples.length]);
+  const paginatedSamples = useMemo(() => {
+    return filteredSamples.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    );
+  }, [filteredSamples, currentPage]);
 
   if (loading) {
     return (
@@ -53,34 +86,6 @@ export default function GeneratorViewer({ projectId }: GeneratorViewerProps) {
       scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
-
-  // Calculate difficulty and chunk counts
-  const totalCount = samples.length;
-  const easyCount = samples.filter((s) => s.difficulty?.toLowerCase() === "easy").length;
-  const mediumCount = samples.filter((s) => s.difficulty?.toLowerCase() === "medium").length;
-  const hardCount = samples.filter((s) => s.difficulty?.toLowerCase() === "hard").length;
-  const uniqueCategories = new Set(samples.map((s) => s.category)).size;
-  const totalChunksReferenced = new Set(
-    samples.flatMap((s) => s.evidence?.map((e) => e.id) || [])
-  ).size;
-
-  // Filter logic
-  const filteredSamples = samples.filter((sample) => {
-    const matchesSearch =
-      (sample.question || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (sample.expected_answer || "").toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDifficulty =
-      selectedDifficulty === "all" ||
-      (sample.difficulty || "").toLowerCase() === selectedDifficulty.toLowerCase();
-    return matchesSearch && matchesDifficulty;
-  });
-
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredSamples.length / itemsPerPage);
-  const paginatedSamples = filteredSamples.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
 
   return (
     <div className="flex flex-col gap-5 select-none">

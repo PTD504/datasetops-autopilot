@@ -13,7 +13,7 @@ interface EvidencePreviewProps {
   evidence?: EvidenceItem[];
 }
 
-export default function EvidencePreview({ evidence = [] }: EvidencePreviewProps) {
+function EvidencePreview({ evidence = [] }: EvidencePreviewProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   if (!evidence || evidence.length === 0) {
@@ -72,3 +72,17 @@ export default function EvidencePreview({ evidence = [] }: EvidencePreviewProps)
     </div>
   );
 }
+
+export default React.memo(EvidencePreview, (prev, next) => {
+  if (prev.evidence?.length !== next.evidence?.length) return false;
+  if (!prev.evidence || !next.evidence) return true;
+  const nextEv = next.evidence;
+  return prev.evidence.every((item, index) => {
+    const n = nextEv[index];
+    return !!(n && item.id === n.id && 
+           item.index === n.index && 
+           item.document_name === n.document_name && 
+           item.text === n.text);
+  });
+});
+

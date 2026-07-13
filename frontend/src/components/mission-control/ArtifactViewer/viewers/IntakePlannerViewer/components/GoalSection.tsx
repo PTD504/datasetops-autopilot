@@ -7,11 +7,24 @@ interface GoalSectionProps {
   goal?: string;
   language?: string;
   domain?: string;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
-export default function GoalSection({ goal, language, domain }: GoalSectionProps) {
+function GoalSection({
+  goal,
+  language,
+  domain,
+  collapsible = false,
+  defaultExpanded = true,
+}: GoalSectionProps) {
   return (
-    <Section title="Benchmark Goal & Scope" icon={<Target size={12} className="text-cyan-400" />}>
+    <Section 
+      title="Benchmark Goal & Scope" 
+      icon={<Target size={12} className="text-cyan-400" />}
+      collapsible={collapsible}
+      defaultExpanded={defaultExpanded}
+    >
       <div className="space-y-4">
         {/* Goal statement */}
         <div className="space-y-1.5">
@@ -44,3 +57,14 @@ export default function GoalSection({ goal, language, domain }: GoalSectionProps
     </Section>
   );
 }
+
+export default React.memo(GoalSection, (prev, next) => {
+  return (
+    prev.goal === next.goal &&
+    prev.language === next.language &&
+    prev.domain === next.domain &&
+    prev.collapsible === next.collapsible &&
+    prev.defaultExpanded === next.defaultExpanded
+  );
+});
+

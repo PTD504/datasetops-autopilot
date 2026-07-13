@@ -10,7 +10,7 @@ interface MetadataRowProps {
   retryCount?: number;
 }
 
-export default function MetadataRow({
+function MetadataRow({
   category,
   difficulty,
   sampleType,
@@ -109,3 +109,6 @@ export default function MetadataRow({
     </div>
   );
 }
+
+export default React.memo(MetadataRow);
+

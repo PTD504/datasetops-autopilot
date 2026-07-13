@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Database, BarChart3 } from "lucide-react";
 import Section from "../../../components/Section";
 import Metric from "../../../components/Metric";
@@ -14,38 +14,71 @@ interface DatasetSectionProps {
   };
   categories?: string[];
   coverageByCategory?: Record<string, { coverage_level: string; coverage_score: number }>;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
-export default function DatasetSection({
+function DatasetSection({
   totalCount,
   difficultyDistribution,
   categories,
   coverageByCategory,
+  collapsible = false,
+  defaultExpanded = true,
 }: DatasetSectionProps) {
   const easy = difficultyDistribution?.easy || 0;
   const medium = difficultyDistribution?.medium || 0;
   const hard = difficultyDistribution?.hard || 0;
-  const total = difficultyDistribution?.total || totalCount || (easy + medium + hard) || 0;
+  
+  // Memoize total count calculation
+  const total = useMemo(() => {
+    return difficultyDistribution?.total || totalCount || (easy + medium + hard) || 0;
+  }, [difficultyDistribution, totalCount, easy, medium, hard]);
 
-  // Percentage calculations for distribution bar
-  const easyPct = total > 0 ? (easy / total) * 100 : 0;
-  const mediumPct = total > 0 ? (medium / total) * 100 : 0;
-  const hardPct = total > 0 ? (hard / total) * 100 : 0;
+  // Percentage calculations for distribution bar (memoized)
+  const easyPct = useMemo(() => total > 0 ? (easy / total) * 100 : 0, [easy, total]);
+  const mediumPct = useMemo(() => total > 0 ? (medium / total) * 100 : 0, [medium, total]);
+  const hardPct = useMemo(() => total > 0 ? (hard / total) * 100 : 0, [hard, total]);
 
   const getCoverageBadgeVariant = (level: string) => {
     switch (level?.toLowerCase()) {
       case "strong": return "success";
-      case "medium": return "default"; // indigo
-      case "weak": return "warning"; // amber
-      case "unsupported": return "error"; // rose
-      default: return "secondary"; // purple
+      case "medium": return "default";
+      case "weak": return "warning";
+      case "unsupported": return "error";
+      default: return "secondary";
     }
   };
 
+  // Memoize categories checklist rendering
+  const categoriesList = useMemo(() => {
+    if (!categories || categories.length === 0) return null;
+    return categories.map((cat) => {
+      const cov = coverageByCategory?.[cat];
+      return (
+        <div key={cat} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.01] border border-white/[0.03] text-xs">
+          <span className="font-medium text-slate-200 truncate pr-2" title={cat}>{cat}</span>
+          {cov ? (
+            <Badge 
+              label={`${cov.coverage_level} (${Math.round((cov.coverage_score || 0) * 100)}%)`}
+              variant={getCoverageBadgeVariant(cov.coverage_level)} 
+            />
+          ) : (
+            <span className="text-[9px] font-mono text-slate-500 uppercase">No Audit Data</span>
+          )}
+        </div>
+      );
+    });
+  }, [categories, coverageByCategory]);
+
   return (
-    <Section title="Planned Dataset Blueprint" icon={<Database size={12} className="text-cyan-400" />}>
+    <Section 
+      title="Planned Dataset Blueprint" 
+      icon={<Database size={12} className="text-cyan-400" />}
+      collapsible={collapsible}
+      defaultExpanded={defaultExpanded}
+    >
       <div className="space-y-5">
-        
         {/* Top telemetry metrics */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Metric
@@ -91,22 +124,7 @@ export default function DatasetSection({
           <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold">Planned Categories & Source Coverage</span>
           {categories && categories.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white/[0.01] border border-white/[0.04] p-4 rounded-xl">
-              {categories.map((cat) => {
-                const cov = coverageByCategory?.[cat];
-                return (
-                  <div key={cat} className="flex items-center justify-between p-2 rounded-lg bg-white/[0.01] border border-white/[0.03] text-xs">
-                    <span className="font-medium text-slate-200 truncate pr-2" title={cat}>{cat}</span>
-                    {cov ? (
-                      <Badge 
-                        label={`${cov.coverage_level} (${Math.round((cov.coverage_score || 0) * 100)}%)`}
-                        variant={getCoverageBadgeVariant(cov.coverage_level)} 
-                      />
-                    ) : (
-                      <span className="text-[9px] font-mono text-slate-500 uppercase">No Audit Data</span>
-                    )}
-                  </div>
-                );
-              })}
+              {categoriesList}
             </div>
           ) : (
             <div className="text-slate-500 italic text-xs border border-dashed border-white/5 bg-white/[0.005] p-4 rounded-xl text-center">
@@ -114,8 +132,20 @@ export default function DatasetSection({
             </div>
           )}
         </div>
-
       </div>
     </Section>
   );
 }
+
+// React.memo with custom comparison
+export default React.memo(DatasetSection, (prev, next) => {
+  return (
+    prev.totalCount === next.totalCount &&
+    prev.collapsible === next.collapsible &&
+    prev.defaultExpanded === next.defaultExpanded &&
+    JSON.stringify(prev.difficultyDistribution) === JSON.stringify(next.difficultyDistribution) &&
+    JSON.stringify(prev.categories) === JSON.stringify(next.categories) &&
+    JSON.stringify(prev.coverageByCategory) === JSON.stringify(next.coverageByCategory)
+  );
+});
+

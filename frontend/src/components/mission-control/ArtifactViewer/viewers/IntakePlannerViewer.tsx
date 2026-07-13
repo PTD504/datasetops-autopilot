@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { TraceItem } from "../../types";
 import { 
   resolvePlanArtifact, 
@@ -19,21 +19,38 @@ interface IntakePlannerViewerProps {
   traces: TraceItem[];
 }
 
-export default function IntakePlannerViewer({
+function IntakePlannerViewer({
   projectId,
   workflowStatus,
   traces,
 }: IntakePlannerViewerProps) {
   const { setIsPlanReviewOpen, setSelectedNodeId } = useMissionControlStore();
 
-  // Extract and resolve artifacts/run data from traces
-  const planData = resolvePlanArtifact(traces);
-  const adjustmentsData = resolveAdjustmentsArtifact(traces);
-  const sourceReportData = resolveSourceReportArtifact(traces);
-  const plannerRun = resolvePlannerRun(traces);
+  // Extract and resolve artifacts/run data from traces (memoized)
+  const planData = useMemo(() => resolvePlanArtifact(traces), [traces]);
+  const adjustmentsData = useMemo(() => resolveAdjustmentsArtifact(traces), [traces]);
+  const sourceReportData = useMemo(() => resolveSourceReportArtifact(traces), [traces]);
+  const plannerRun = useMemo(() => resolvePlannerRun(traces), [traces]);
 
-  // Check if planner agent is currently running or completed
-  const isPlanning = workflowStatus === "PLANNING" || (plannerRun && plannerRun.status === "running");
+  // Check if planner agent is currently running or completed (memoized)
+  const isPlanning = useMemo(() => {
+    return workflowStatus === "PLANNING" || (plannerRun && plannerRun.status === "running");
+  }, [workflowStatus, plannerRun]);
+
+  // Derive goal from run output if missing from the plan artifact payload (memoized)
+  const goal = useMemo(() => {
+    if (!planData) return undefined;
+    return (planData as any).goal || (plannerRun?.output_json as any)?.goal || undefined;
+  }, [planData, plannerRun]);
+
+  // Derive categories list (memoized)
+  const categoriesList = useMemo(() => {
+    if (!planData) return [];
+    return Array.from(new Set([
+      ...(planData.categories || []),
+      ...(sourceReportData?.coverage_by_category ? Object.keys(sourceReportData.coverage_by_category) : [])
+    ]));
+  }, [planData, sourceReportData]);
 
   // Renders empty/loading state if plan data is not yet resolved
   if (!planData) {
@@ -59,9 +76,6 @@ export default function IntakePlannerViewer({
       </div>
     );
   }
-
-  // Derive goal from run output if missing from the plan artifact payload
-  const goal = (planData as any).goal || (plannerRun?.output_json as any)?.goal || undefined;
 
   return (
     <div className="flex flex-col gap-5 select-none text-left">
@@ -102,19 +116,22 @@ export default function IntakePlannerViewer({
             goal={goal} 
             language={planData.language} 
             domain={planData.domain} 
+            collapsible={true}
+            defaultExpanded={true}
           />
           <DatasetSection 
             totalCount={typeof planData.sample_count === "number" ? planData.sample_count : undefined}
             difficultyDistribution={planData.difficulty_distribution}
-            categories={Array.from(new Set([
-              ...(planData.categories || []),
-              ...(sourceReportData?.coverage_by_category ? Object.keys(sourceReportData.coverage_by_category) : [])
-            ]))}
+            categories={categoriesList}
             coverageByCategory={sourceReportData?.coverage_by_category}
+            collapsible={true}
+            defaultExpanded={true}
           />
           <WarningsSection 
             warningsConsidered={adjustmentsData?.warnings_considered}
             warnings={planData.warnings}
+            collapsible={true}
+            defaultExpanded={true}
           />
         </div>
 
@@ -122,12 +139,43 @@ export default function IntakePlannerViewer({
         <div className="flex flex-col gap-5">
           <QualityRulesSection 
             rules={planData.quality_rules} 
+            collapsible={true}
+            defaultExpanded={true}
           />
           <DecisionsSection 
             adjustments={adjustmentsData?.planning_adjustments}
+            collapsible={true}
+            defaultExpanded={true}
           />
         </div>
       </div>
     </div>
   );
 }
+
+// React.memo custom comparison to prevent unnecessary polling rerenders
+const arePropsEqual = (prevProps: IntakePlannerViewerProps, nextProps: IntakePlannerViewerProps) => {
+  if (prevProps.projectId !== nextProps.projectId) return false;
+  if (prevProps.workflowStatus !== nextProps.workflowStatus) return false;
+
+  const prevPlan = resolvePlanArtifact(prevProps.traces);
+  const nextPlan = resolvePlanArtifact(nextProps.traces);
+  if (JSON.stringify(prevPlan) !== JSON.stringify(nextPlan)) return false;
+
+  const prevAdj = resolveAdjustmentsArtifact(prevProps.traces);
+  const nextAdj = resolveAdjustmentsArtifact(nextProps.traces);
+  if (JSON.stringify(prevAdj) !== JSON.stringify(nextAdj)) return false;
+
+  const prevReport = resolveSourceReportArtifact(prevProps.traces);
+  const nextReport = resolveSourceReportArtifact(nextProps.traces);
+  if (JSON.stringify(prevReport) !== JSON.stringify(nextReport)) return false;
+
+  const prevRun = resolvePlannerRun(prevProps.traces);
+  const nextRun = resolvePlannerRun(nextProps.traces);
+  if (prevRun?.status !== nextRun?.status) return false;
+
+  return true;
+};
+
+export default React.memo(IntakePlannerViewer, arePropsEqual);
+

@@ -32,9 +32,9 @@ interface SampleCardProps {
   sample: SampleData;
 }
 
-export default function SampleCard({ sample }: SampleCardProps) {
+function SampleCard({ sample }: SampleCardProps) {
   return (
-    <div className="relative group p-4 md:p-5 rounded-2xl border border-white/[0.08] bg-[#12163f]/35 backdrop-blur-md transition-all duration-200 hover:bg-[#161c52]/55 hover:border-indigo-500/30 shadow-[0_8px_30px_rgba(0,0,0,0.35)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5),0_0_20px_rgba(99,102,241,0.06)] flex flex-col gap-4 select-text">
+    <div className="relative group p-4 md:p-5 rounded-2xl border border-white/[0.08] bg-[#0e1130] will-change-transform transition-all duration-200 hover:bg-[#161c52]/55 hover:border-indigo-500/30 shadow-[0_8px_30px_rgba(0,0,0,0.35)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5),0_0_20px_rgba(99,102,241,0.06)] flex flex-col gap-4 select-text">
       
       {/* Top Header Row */}
       <div className="flex items-center justify-between gap-3 text-[10px] font-mono">
@@ -87,3 +87,17 @@ export default function SampleCard({ sample }: SampleCardProps) {
     </div>
   );
 }
+
+export default React.memo(SampleCard, (prev, next) => {
+  return (
+    prev.sample.id === next.sample.id &&
+    prev.sample.status === next.sample.status &&
+    prev.sample.category === next.sample.category &&
+    prev.sample.difficulty === next.sample.difficulty &&
+    prev.sample.sample_type === next.sample.sample_type &&
+    prev.sample.question === next.sample.question &&
+    prev.sample.expected_answer === next.sample.expected_answer &&
+    JSON.stringify(prev.sample.evidence) === JSON.stringify(next.sample.evidence)
+  );
+});
+
