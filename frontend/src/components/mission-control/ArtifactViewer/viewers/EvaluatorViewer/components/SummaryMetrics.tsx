@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import Metric from "../../../components/Metric";
 import { ClipboardCheck, Sparkles, AlertTriangle, XOctagon, RefreshCw, BarChart2 } from "lucide-react";
 import { EvaluatorSample } from "../useEvaluatorSamples";
@@ -7,24 +7,26 @@ interface SummaryMetricsProps {
   samples: EvaluatorSample[];
 }
 
-export default function SummaryMetrics({ samples }: SummaryMetricsProps) {
+function SummaryMetrics({ samples }: SummaryMetricsProps) {
   const totalCount = samples.length;
   
-  // Count states based on decisions
-  const passCount = samples.filter((s) => s.decision === "pass" && s.retry_count === 0).length;
-  const repairCount = samples.filter((s) => s.decision === "repair" || s.retry_count > 0).length;
-  const reviewCount = samples.filter((s) => s.decision === "human_review").length;
-  const rejectCount = samples.filter((s) => s.decision === "reject").length;
+  // Memoize counts based on decisions
+  const passCount = useMemo(() => samples.filter((s) => s.decision === "pass" && s.retry_count === 0).length, [samples]);
+  const repairCount = useMemo(() => samples.filter((s) => s.decision === "repair" || s.retry_count > 0).length, [samples]);
+  const reviewCount = useMemo(() => samples.filter((s) => s.decision === "human_review").length, [samples]);
+  const rejectCount = useMemo(() => samples.filter((s) => s.decision === "reject").length, [samples]);
 
-  // Calculate average overall quality score
-  const samplesWithScores = samples.filter((s) => s.overall_score !== null);
-  const avgScore = samplesWithScores.length > 0
-    ? samplesWithScores.reduce((acc, curr) => acc + (curr.overall_score || 0), 0) / samplesWithScores.length
-    : 0;
+  // Memoize average overall quality score
+  const averagePercentage = useMemo(() => {
+    const samplesWithScores = samples.filter((s) => s.overall_score !== null);
+    const avgScore = samplesWithScores.length > 0
+      ? samplesWithScores.reduce((acc, curr) => acc + (curr.overall_score || 0), 0) / samplesWithScores.length
+      : 0;
+    return Math.round(avgScore * 100);
+  }, [samples]);
 
   // Formatting strings
-  const passRate = totalCount > 0 ? Math.round((passCount / totalCount) * 100) : 0;
-  const averagePercentage = Math.round(avgScore * 100);
+  const passRate = useMemo(() => totalCount > 0 ? Math.round((passCount / totalCount) * 100) : 0, [passCount, totalCount]);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-6 gap-3 select-none">
@@ -61,3 +63,15 @@ export default function SummaryMetrics({ samples }: SummaryMetricsProps) {
     </div>
   );
 }
+
+export default React.memo(SummaryMetrics, (prev, next) => {
+  if (prev.samples.length !== next.samples.length) return false;
+  return prev.samples.every((s, i) => {
+    const n = next.samples[i];
+    return s.id === n.id && 
+           s.decision === n.decision && 
+           s.overall_score === n.overall_score && 
+           s.retry_count === n.retry_count;
+  });
+});
+

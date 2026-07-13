@@ -4,7 +4,7 @@ interface DifficultyBadgeProps {
   difficulty?: string;
 }
 
-export default function DifficultyBadge({ difficulty = "medium" }: DifficultyBadgeProps) {
+function DifficultyBadge({ difficulty = "medium" }: DifficultyBadgeProps) {
   const diff = (difficulty || "").toLowerCase();
   let classes = "bg-amber-500/10 text-amber-300 border-amber-500/25";
   let label = "Medium";
@@ -23,3 +23,6 @@ export default function DifficultyBadge({ difficulty = "medium" }: DifficultyBad
     </span>
   );
 }
+
+export default React.memo(DifficultyBadge);
+

@@ -7,7 +7,7 @@ interface RepairInstructionProps {
   retryCount: number;
 }
 
-export default function RepairInstruction({
+function RepairInstruction({
   instruction,
   status,
   retryCount,
@@ -97,3 +97,10 @@ export default function RepairInstruction({
     </div>
   );
 }
+
+export default React.memo(RepairInstruction, (prev, next) => {
+  return prev.instruction === next.instruction &&
+         prev.status === next.status &&
+         prev.retryCount === next.retryCount;
+});
+

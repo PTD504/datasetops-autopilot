@@ -6,7 +6,7 @@ interface ReasoningPanelProps {
   issues: string[];
 }
 
-export default function ReasoningPanel({ notes, issues }: ReasoningPanelProps) {
+function ReasoningPanel({ notes, issues }: ReasoningPanelProps) {
   const hasIssues = issues && issues.length > 0;
 
   return (
@@ -47,3 +47,11 @@ export default function ReasoningPanel({ notes, issues }: ReasoningPanelProps) {
     </div>
   );
 }
+
+export default React.memo(ReasoningPanel, (prev, next) => {
+  return (
+    prev.notes === next.notes &&
+    JSON.stringify(prev.issues) === JSON.stringify(next.issues)
+  );
+});
+

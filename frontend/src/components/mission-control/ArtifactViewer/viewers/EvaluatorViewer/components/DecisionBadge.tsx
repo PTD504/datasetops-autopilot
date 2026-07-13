@@ -8,7 +8,7 @@ interface DecisionBadgeProps {
   className?: string;
 }
 
-export default function DecisionBadge({ decision, className = "" }: DecisionBadgeProps) {
+function DecisionBadge({ decision, className = "" }: DecisionBadgeProps) {
   let config = {
     label: "PASS",
     classes: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -54,3 +54,6 @@ export default function DecisionBadge({ decision, className = "" }: DecisionBadg
     </span>
   );
 }
+
+export default React.memo(DecisionBadge);
+

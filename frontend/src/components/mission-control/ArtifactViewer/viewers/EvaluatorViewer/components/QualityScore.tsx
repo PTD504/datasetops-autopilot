@@ -6,7 +6,7 @@ interface QualityScoreProps {
   isRisk?: boolean; // If true, lower is better (red/green inverted)
 }
 
-function MetricPill({ score, label, isRisk = false }: QualityScoreProps) {
+const MetricPill = React.memo(function MetricPill({ score, label, isRisk = false }: QualityScoreProps) {
   if (score === null || score === undefined) return null;
   
   // Format percentage
@@ -54,7 +54,7 @@ function MetricPill({ score, label, isRisk = false }: QualityScoreProps) {
       </div>
     </div>
   );
-}
+});
 
 interface QualityScoreGridProps {
   overallScore: number | null;
@@ -67,7 +67,7 @@ interface QualityScoreGridProps {
   clarity?: number | null;
 }
 
-export default function QualityScore({
+function QualityScore({
   overallScore,
   faithfulness,
   relevance,
@@ -115,3 +115,17 @@ export default function QualityScore({
     </div>
   );
 }
+
+export default React.memo(QualityScore, (prev, next) => {
+  return (
+    prev.overallScore === next.overallScore &&
+    prev.faithfulness === next.faithfulness &&
+    prev.relevance === next.relevance &&
+    prev.precision === next.precision &&
+    prev.recall === next.recall &&
+    prev.hallucinationRisk === next.hallucinationRisk &&
+    prev.novelty === next.novelty &&
+    prev.clarity === next.clarity
+  );
+});
+

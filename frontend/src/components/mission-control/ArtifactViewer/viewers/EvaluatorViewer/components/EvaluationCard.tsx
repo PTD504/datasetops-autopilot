@@ -15,7 +15,7 @@ interface EvaluationCardProps {
   onEdit?: (sample: EvaluatorSample) => void;
 }
 
-export default function EvaluationCard({ sample, onApprove, onReject, onEdit }: EvaluationCardProps) {
+function EvaluationCard({ sample, onApprove, onReject, onEdit }: EvaluationCardProps) {
   // Format sample type string
   const formatSampleType = (type: string) => {
     if (!type) return "General Query";
@@ -29,7 +29,7 @@ export default function EvaluationCard({ sample, onApprove, onReject, onEdit }: 
   const isRepair = sample.decision === "repair";
 
   return (
-    <div className="relative group p-4 md:p-5 rounded-2xl border border-white/[0.08] bg-[#12163f]/35 backdrop-blur-md transition-all duration-200 hover:bg-[#161c52]/55 hover:border-indigo-500/30 shadow-[0_8px_30px_rgba(0,0,0,0.35)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5),0_0_20px_rgba(99,102,241,0.06)] flex flex-col gap-4 select-text">
+    <div className="relative group p-4 md:p-5 rounded-2xl border border-white/[0.08] bg-[#0e1130] will-change-transform transition-all duration-200 hover:bg-[#161c52]/55 hover:border-indigo-500/30 shadow-[0_8px_30px_rgba(0,0,0,0.35)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.5),0_0_20px_rgba(99,102,241,0.06)] flex flex-col gap-4 select-text">
       
       {/* Top Header Row */}
       <div className="flex items-center justify-between gap-3 text-[10px] font-mono border-b border-white/[0.03] pb-3">
@@ -100,7 +100,7 @@ export default function EvaluationCard({ sample, onApprove, onReject, onEdit }: 
       {/* Expected Answer section */}
       <div className="pl-9 pr-2">
         <div className="p-3 rounded-xl border border-emerald-500/10 bg-[#05071a]/65 shadow-[inset_0_2px_8px_rgba(0,0,0,0.4)] space-y-1 text-left">
-          <div className="text-[9px] font-mono text-emerald-400/80 uppercase tracking-wider font-semibold">Evaluated Answer</div>
+          <div className="text-[9px] font-mono text-emerald-400/80 uppercase tracking-wider font-semibold">Expected Answer</div>
           <p className="text-xs text-slate-350 leading-relaxed font-sans select-text">
             {sample.expected_answer}
           </p>
@@ -151,7 +151,7 @@ export default function EvaluationCard({ sample, onApprove, onReject, onEdit }: 
         <div className="flex items-center gap-1">
           <Layers size={11} className="text-slate-400 shrink-0" />
           <span className="text-slate-400 font-medium">Category:</span>
-          <span className="text-slate-350 font-semibold">{sample.category}</span>
+          <span className="text-slate-355 font-semibold">{sample.category}</span>
         </div>
 
         <span className="text-white/10 select-none">•</span>
@@ -211,3 +211,17 @@ export default function EvaluationCard({ sample, onApprove, onReject, onEdit }: 
     </div>
   );
 }
+
+export default React.memo(EvaluationCard, (prev, next) => {
+  return (
+    prev.sample.id === next.sample.id &&
+    prev.sample.status === next.sample.status &&
+    prev.sample.decision === next.sample.decision &&
+    prev.sample.retry_count === next.sample.retry_count &&
+    prev.sample.question === next.sample.question &&
+    prev.sample.expected_answer === next.sample.expected_answer &&
+    prev.sample.overall_score === next.sample.overall_score &&
+    JSON.stringify(prev.sample.evidence) === JSON.stringify(next.sample.evidence) &&
+    JSON.stringify(prev.sample.issues) === JSON.stringify(next.sample.issues)
+  );
+});
