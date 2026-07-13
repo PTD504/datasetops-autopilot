@@ -19,9 +19,7 @@ interface ControlHeaderProps {
   projectId: string;
   projectName: string;
   workflowStatus: WorkflowStatus;
-  demoMode: boolean;
   cancelRequested?: boolean;
-  onToggleDemoMode: () => void;
   onStopWorkflow: () => void;
   repairsCount?: number;
   traces?: TraceItem[];
@@ -33,9 +31,7 @@ export default function ControlHeader({
   projectId,
   projectName,
   workflowStatus,
-  demoMode,
   cancelRequested = false,
-  onToggleDemoMode,
   onStopWorkflow,
   repairsCount,
   traces = [],
@@ -222,17 +218,10 @@ export default function ControlHeader({
 
         {/* Mode Selector and Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={onToggleDemoMode}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold rounded-xl border transition-all h-8 ${
-              demoMode
-                ? "bg-purple-500/10 text-purple-400 border-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.15)]"
-                : "bg-white/5 text-slate-450 border-white/10 hover:border-white/20"
-            }`}
-          >
-            <Sparkles size={11} className={demoMode ? "text-purple-400" : "text-slate-500"} />
-            {demoMode ? "Demo" : "Live"}
-          </button>
+          <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] font-mono font-bold rounded-xl border bg-indigo-500/10 text-indigo-400 border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.15)] h-8 select-none">
+            <Sparkles size={11} className="text-indigo-400 animate-pulse" />
+            <span>AUTOPILOT ENGINE</span>
+          </div>
 
           {derivedState.isResumable ? (
             <Button

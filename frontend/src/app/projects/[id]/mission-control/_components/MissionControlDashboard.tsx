@@ -1,11 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useMissionControlStore } from "../../../../../components/mission-control/store/useMissionControlStore";
-import { 
-  MOCK_USAGE_SUMMARY, 
-  MOCK_WORKFLOW_STATE, 
-  MOCK_TRACE_ITEMS, 
-  MOCK_RAW_TRACES 
-} from "../../../../../components/mission-control/mock/mockData";
 import ControlHeader from "./ControlHeader";
 import WorkspaceGrid from "./WorkspaceGrid";
 import TelemetryCluster, { TelemetryMetric } from "./TelemetryCluster";
@@ -52,8 +46,6 @@ export default function MissionControlDashboard({
   onResumeWorkflow,
 }: MissionControlDashboardProps) {
   const {
-    demoMode,
-    setDemoMode,
     selectedNodeId,
     setSelectedNodeId,
     isPlanReviewOpen,
@@ -74,13 +66,8 @@ export default function MissionControlDashboard({
   const handleResumeWorkflow = async () => {
     setIsResuming(true);
     try {
-      if (demoMode) {
-        console.log("Resume requested in demo mode");
-        setToast({ message: "Workflow resumed. Continuing execution...", type: "success" });
-      } else {
-        await onResumeWorkflow();
-        setToast({ message: "Workflow resumed. Continuing execution...", type: "success" });
-      }
+      await onResumeWorkflow();
+      setToast({ message: "Workflow resumed. Continuing execution...", type: "success" });
     } catch (err: any) {
       setToast({ message: err.message || "Failed to resume workflow.", type: "error" });
     } finally {
@@ -88,23 +75,13 @@ export default function MissionControlDashboard({
     }
   };
 
-  const handleToggleDemoMode = () => {
-    setDemoMode(!demoMode);
-  };
-
-  // Derive active values based on demoMode
-  const activeWorkflowStatus = demoMode ? MOCK_WORKFLOW_STATE : (workflowStatus || "LOADING");
-  const activeTraces = demoMode ? MOCK_TRACE_ITEMS : traces;
-  const activeRawTraces = demoMode ? MOCK_RAW_TRACES : rawTraces;
-  const activeUsage = demoMode ? MOCK_USAGE_SUMMARY : usage;
+  const activeWorkflowStatus = workflowStatus || "LOADING";
+  const activeTraces = traces;
+  const activeRawTraces = rawTraces;
+  const activeUsage = usage;
 
   // Poll for samples count when waiting for sample review
   useEffect(() => {
-    if (demoMode) {
-      setSamplesCount(3); // In demo mode, use a static mock count of 3
-      return;
-    }
-
     if (activeWorkflowStatus !== "WAITING_FOR_SAMPLE_REVIEW") return;
 
     let active = true;
@@ -129,15 +106,10 @@ export default function MissionControlDashboard({
       active = false;
       clearInterval(interval);
     };
-  }, [projectId, activeWorkflowStatus, demoMode]);
+  }, [projectId, activeWorkflowStatus]);
 
   const handleStopWorkflow = () => {
-    if (demoMode) {
-      // Local mockup stop action (no-op in demo mode)
-      console.log("Stop requested in demo mode");
-    } else {
-      onStopWorkflow();
-    }
+    onStopWorkflow();
   };
 
   // Map backend LLM usage into reusable TelemetryMetric shape
@@ -192,14 +164,12 @@ export default function MissionControlDashboard({
     },
   ] : [];
 
-  // Derive repair count based on traces or demoMode
-  const repairsCount = demoMode
-    ? (["EVALUATING", "REPAIRING", "WAITING_FOR_SAMPLE_REVIEW", "EXPORTING", "EXPORT_READY", "DONE"].includes(activeWorkflowStatus) ? 2 : 0)
-    : activeTraces
-        .filter((t) => t.type === "agent_run")
-        .map((t) => t.data as any)
-        .filter((run) => run.agent_name === "BenchmarkGeneratorAgent" && run.input_summary?.toLowerCase().includes("repairing"))
-        .length;
+  // Derive repair count based on traces
+  const repairsCount = activeTraces
+    .filter((t) => t.type === "agent_run")
+    .map((t) => t.data as any)
+    .filter((run) => run.agent_name === "BenchmarkGeneratorAgent" && run.input_summary?.toLowerCase().includes("repairing"))
+    .length;
 
   return (
     <div className="flex flex-col gap-6 py-4">
@@ -208,9 +178,7 @@ export default function MissionControlDashboard({
         projectId={projectId}
         projectName="Acme Docs Evaluation Workflow"
         workflowStatus={activeWorkflowStatus}
-        demoMode={demoMode}
         cancelRequested={activeUsage?.cancel_requested}
-        onToggleDemoMode={handleToggleDemoMode}
         onStopWorkflow={handleStopWorkflow}
         repairsCount={repairsCount}
         traces={activeTraces}
