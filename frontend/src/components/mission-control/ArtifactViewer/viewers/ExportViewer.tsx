@@ -23,8 +23,8 @@ export default function ExportViewer({
   workflowStatus,
   traces,
 }: ExportViewerProps) {
-  const { demoMode, setIsDownloaded, setShowCompletionOverlay, setSelectedNodeId } = useMissionControlStore();
-  const { samples, loading: samplesLoading } = useGeneratorSamples(projectId, demoMode);
+  const { setIsDownloaded, setShowCompletionOverlay, setSelectedNodeId } = useMissionControlStore();
+  const { samples, loading: samplesLoading } = useGeneratorSamples(projectId);
   const [selectedFile, setSelectedFile] = useState<string | null>("dataset_card.md");
 
   // 1. Resolve Export Summary

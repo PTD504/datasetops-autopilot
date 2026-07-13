@@ -13,8 +13,8 @@ interface EvaluatorViewerProps {
 }
 
 export default function EvaluatorViewer({ projectId, workflowStatus }: EvaluatorViewerProps) {
-  const { demoMode, setSelectedNodeId } = useMissionControlStore();
-  const { samples, setSamples, loading } = useEvaluatorSamples(projectId, demoMode);
+  const { setSelectedNodeId } = useMissionControlStore();
+  const { samples, setSamples, loading } = useEvaluatorSamples(projectId);
   
   // Search, filter, and pagination states
   const [searchQuery, setSearchQuery] = useState("");
@@ -188,13 +188,6 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
 
   // Helper to approve sample
   const handleApprove = async (sampleId: string) => {
-    if (demoMode) {
-      setSamples((prev) => prev.map((s) => s.id === sampleId ? { ...s, status: "APPROVED" } : s));
-      if (selectedDecision === "human_review") {
-        scrollToTop();
-      }
-      return;
-    }
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sampleId}/approve`, {
@@ -217,13 +210,6 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
 
   // Helper to reject sample
   const handleReject = async (sampleId: string) => {
-    if (demoMode) {
-      setSamples((prev) => prev.map((s) => s.id === sampleId ? { ...s, status: "REJECTED" } : s));
-      if (selectedDecision === "human_review") {
-        scrollToTop();
-      }
-      return;
-    }
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sampleId}/reject`, {
@@ -257,42 +243,29 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
     setIsBulkProcessing(true);
 
     try {
-      if (demoMode) {
-        // Mock state updates
-        setSamples((prev) => {
-          const updateIds = new Set(visiblePendingReviews.map((s) => s.id));
-          return prev.map((s) => {
-            if (updateIds.has(s.id)) {
-              return { ...s, status: action === "approve" ? "APPROVED" : "REJECTED" };
-            }
-            return s;
-          });
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const promises = visiblePendingReviews.map(async (sample) => {
+        const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sample.id}/${action}`, {
+          method: "POST"
         });
-      } else {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-        const promises = visiblePendingReviews.map(async (sample) => {
-          const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sample.id}/${action}`, {
-            method: "POST"
-          });
-          if (!res.ok) {
-            throw new Error(`Failed to ${action} sample ${sample.id}`);
-          }
-          return res.json();
-        });
+        if (!res.ok) {
+          throw new Error(`Failed to ${action} sample ${sample.id}`);
+        }
+        return res.json();
+      });
 
-        const results = await Promise.all(promises);
-        
-        // Single state update
-        setSamples((prev) => {
-          const resultMap = new Map(results.map((r) => [r.id, r.status]));
-          return prev.map((s) => {
-            if (resultMap.has(s.id)) {
-              return { ...s, status: resultMap.get(s.id) };
-            }
-            return s;
-          });
+      const results = await Promise.all(promises);
+      
+      // Single state update
+      setSamples((prev) => {
+        const resultMap = new Map(results.map((r) => [r.id, r.status]));
+        return prev.map((s) => {
+          if (resultMap.has(s.id)) {
+            return { ...s, status: resultMap.get(s.id) };
+          }
+          return s;
         });
-      }
+      });
       
       // Auto scroll to top if we are filtering by human_review and cleared it
       if (selectedDecision === "human_review") {

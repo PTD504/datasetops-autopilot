@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from "react";
-import { useMissionControlStore } from "../../../store/useMissionControlStore";
 import { useGeneratorSamples } from "./useGeneratorSamples";
 import SampleCard from "./components/SampleCard";
 import Section from "../../components/Section";
@@ -12,8 +11,7 @@ interface GeneratorViewerProps {
 }
 
 export default function GeneratorViewer({ projectId }: GeneratorViewerProps) {
-  const { demoMode } = useMissionControlStore();
-  const { samples, loading } = useGeneratorSamples(projectId, demoMode);
+  const { samples, loading } = useGeneratorSamples(projectId);
   
   // Minimalist search/filter/pagination state
   const [searchQuery, setSearchQuery] = useState("");
