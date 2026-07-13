@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { FileText, Award, Layers } from "lucide-react";
 import Section from "../../../components/Section";
 import Metric from "../../../components/Metric";
@@ -8,35 +8,54 @@ interface SummarySectionProps {
   documents?: DocumentSummary[];
   confidenceScore?: number;
   overallSummary?: string;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
-export default function SummarySection({
+function SummarySection({
   documents,
   confidenceScore,
   overallSummary,
+  collapsible = false,
+  defaultExpanded = true,
 }: SummarySectionProps) {
   const hasDocuments = documents && documents.length > 0;
-  const totalChunks = documents?.reduce((acc, doc) => acc + (doc.chunk_count || 0), 0) || 0;
+  
+  // Memoize total chunks calculation (document statistics)
+  const totalChunks = useMemo(() => {
+    return documents?.reduce((acc, doc) => acc + (doc.chunk_count || 0), 0) || 0;
+  }, [documents]);
+
+  // Memoize document list elements rendering
+  const documentList = useMemo(() => {
+    if (!documents || documents.length === 0) return null;
+    return documents.map((doc, idx) => (
+      <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-white/[0.02] last:border-0">
+        <div className="flex items-center gap-2 truncate pr-2">
+          <FileText size={12} className="text-slate-400 shrink-0" />
+          <span className="text-slate-200 truncate font-sans" title={doc.filename}>{doc.filename}</span>
+        </div>
+        {doc.chunk_count !== undefined && (
+          <span className="text-[10px] font-mono text-slate-500 shrink-0">{doc.chunk_count} Chunks</span>
+        )}
+      </div>
+    ));
+  }, [documents]);
 
   return (
-    <Section title="Document Analysis Summary" icon={<FileText size={12} className="text-cyan-400" />}>
+    <Section 
+      title="Document Analysis Summary" 
+      icon={<FileText size={12} className="text-cyan-400" />}
+      collapsible={collapsible}
+      defaultExpanded={defaultExpanded}
+    >
       <div className="space-y-4">
         {/* Scanned files list */}
         <div className="space-y-1.5">
           <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold">Parsed Source Materials</span>
           {hasDocuments ? (
             <div className="space-y-2 max-h-32 overflow-y-auto pr-1 border border-white/[0.04] bg-white/[0.005] p-3 rounded-xl">
-              {documents.map((doc, idx) => (
-                <div key={idx} className="flex items-center justify-between text-xs py-1 border-b border-white/[0.02] last:border-0">
-                  <div className="flex items-center gap-2 truncate pr-2">
-                    <FileText size={12} className="text-slate-400 shrink-0" />
-                    <span className="text-slate-200 truncate font-sans" title={doc.filename}>{doc.filename}</span>
-                  </div>
-                  {doc.chunk_count !== undefined && (
-                    <span className="text-[10px] font-mono text-slate-500 shrink-0">{doc.chunk_count} Chunks</span>
-                  )}
-                </div>
-              ))}
+              {documentList}
             </div>
           ) : (
             <div className="text-slate-500 italic text-xs border border-dashed border-white/5 bg-white/[0.005] p-3 rounded-xl">
@@ -80,3 +99,15 @@ export default function SummarySection({
     </Section>
   );
 }
+
+// React.memo to prevent unnecessary re-renders when parent properties haven't changed
+export default React.memo(SummarySection, (prev, next) => {
+  return (
+    prev.confidenceScore === next.confidenceScore &&
+    prev.overallSummary === next.overallSummary &&
+    prev.collapsible === next.collapsible &&
+    prev.defaultExpanded === next.defaultExpanded &&
+    JSON.stringify(prev.documents) === JSON.stringify(next.documents)
+  );
+});
+

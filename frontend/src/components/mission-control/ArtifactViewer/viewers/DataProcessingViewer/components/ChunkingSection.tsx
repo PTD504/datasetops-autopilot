@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Layers, Clock, Settings } from "lucide-react";
 import Section from "../../../components/Section";
 import Metric from "../../../components/Metric";
@@ -8,18 +8,30 @@ interface ChunkingSectionProps {
   chunkSize?: number;
   chunkOverlap?: number;
   chunkingLatency?: number;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
-export default function ChunkingSection({
+function ChunkingSection({
   totalChunks,
   chunkSize,
   chunkOverlap,
   chunkingLatency,
+  collapsible = false,
+  defaultExpanded = true,
 }: ChunkingSectionProps) {
-  const durationSec = chunkingLatency !== undefined ? (chunkingLatency / 1000).toFixed(2) : undefined;
+  // Memoize duration calculation
+  const durationSec = useMemo(() => {
+    return chunkingLatency !== undefined ? (chunkingLatency / 1000).toFixed(2) : undefined;
+  }, [chunkingLatency]);
 
   return (
-    <Section title="Parsing & Chunks Segmentation" icon={<Layers size={12} className="text-cyan-400" />}>
+    <Section 
+      title="Parsing & Chunks Segmentation" 
+      icon={<Layers size={12} className="text-cyan-400" />}
+      collapsible={collapsible}
+      defaultExpanded={defaultExpanded}
+    >
       <div className="space-y-4">
         {/* Core telemetry */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -58,3 +70,16 @@ export default function ChunkingSection({
     </Section>
   );
 }
+
+// React.memo with basic prop comparison
+export default React.memo(ChunkingSection, (prev, next) => {
+  return (
+    prev.totalChunks === next.totalChunks &&
+    prev.chunkSize === next.chunkSize &&
+    prev.chunkOverlap === next.chunkOverlap &&
+    prev.chunkingLatency === next.chunkingLatency &&
+    prev.collapsible === next.collapsible &&
+    prev.defaultExpanded === next.defaultExpanded
+  );
+});
+

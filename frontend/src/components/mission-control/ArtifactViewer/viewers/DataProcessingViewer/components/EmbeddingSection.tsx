@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Cpu, ShieldCheck, Clock } from "lucide-react";
 import Section from "../../../components/Section";
 import Metric from "../../../components/Metric";
@@ -8,19 +8,35 @@ interface EmbeddingSectionProps {
   mode?: string;
   embeddingLatency?: number;
   totalChunks?: number;
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
-export default function EmbeddingSection({
+function EmbeddingSection({
   model,
   mode,
   embeddingLatency,
   totalChunks,
+  collapsible = false,
+  defaultExpanded = true,
 }: EmbeddingSectionProps) {
-  const durationSec = embeddingLatency ? (embeddingLatency / 1000).toFixed(2) : undefined;
-  const isMock = mode?.toLowerCase() === "mock";
+  // Memoize duration calculation
+  const durationSec = useMemo(() => {
+    return embeddingLatency ? (embeddingLatency / 1000).toFixed(2) : undefined;
+  }, [embeddingLatency]);
+
+  // Memoize service mode check
+  const isMock = useMemo(() => {
+    return mode?.toLowerCase() === "mock";
+  }, [mode]);
 
   return (
-    <Section title="Vector Embedding & Indexing" icon={<Cpu size={12} className="text-cyan-400" />}>
+    <Section 
+      title="Vector Embedding & Indexing" 
+      icon={<Cpu size={12} className="text-cyan-400" />}
+      collapsible={collapsible}
+      defaultExpanded={defaultExpanded}
+    >
       <div className="space-y-4">
         {/* Core telemetry */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -63,3 +79,16 @@ export default function EmbeddingSection({
     </Section>
   );
 }
+
+// React.memo with basic prop comparison
+export default React.memo(EmbeddingSection, (prev, next) => {
+  return (
+    prev.model === next.model &&
+    prev.mode === next.mode &&
+    prev.embeddingLatency === next.embeddingLatency &&
+    prev.totalChunks === next.totalChunks &&
+    prev.collapsible === next.collapsible &&
+    prev.defaultExpanded === next.defaultExpanded
+  );
+});
+

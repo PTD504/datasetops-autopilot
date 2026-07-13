@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Activity, Clock, AlertTriangle } from "lucide-react";
 import Section from "../../../components/Section";
 import Metric from "../../../components/Metric";
@@ -9,33 +9,58 @@ interface SummarySectionProps {
   chunkingLatency?: number;
   embeddingLatency?: number;
   warnings?: string[];
+  collapsible?: boolean;
+  defaultExpanded?: boolean;
 }
 
-export default function SummarySection({
+function SummarySection({
   status,
   chunkingLatency,
   embeddingLatency,
   warnings,
+  collapsible = false,
+  defaultExpanded = true,
 }: SummarySectionProps) {
   const totalDurationMs = (chunkingLatency || 0) + (embeddingLatency || 0);
-  const totalDurationSec = totalDurationMs > 0 ? (totalDurationMs / 1000).toFixed(2) : undefined;
+  
+  // Memoize total duration calculation
+  const totalDurationSec = useMemo(() => {
+    return totalDurationMs > 0 ? (totalDurationMs / 1000).toFixed(2) : undefined;
+  }, [totalDurationMs]);
 
-  const getStatusBadge = () => {
+  // Memoize status badge resolution
+  const statusBadge = useMemo(() => {
     switch (status) {
       case "completed": return <Badge label="Completed" variant="success" />;
-      case "running": return <Badge label="Processing" variant="secondary" />; // purple
+      case "running": return <Badge label="Processing" variant="secondary" />;
       case "failed": return <Badge label="Failed" variant="error" />;
-      default: return <Badge label="Pending" variant="default" />; // indigo
+      default: return <Badge label="Pending" variant="default" />;
     }
-  };
+  }, [status]);
+
+  // Memoize warnings list rendering
+  const warningsList = useMemo(() => {
+    if (!warnings || warnings.length === 0) return null;
+    return warnings.map((w, idx) => (
+      <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
+        <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
+        <span className="leading-relaxed font-sans">{w}</span>
+      </div>
+    ));
+  }, [warnings]);
 
   return (
-    <Section title="Preprocessing Workspace Status" icon={<Activity size={12} className="text-cyan-400" />}>
+    <Section 
+      title="Preprocessing Workspace Status" 
+      icon={<Activity size={12} className="text-cyan-400" />}
+      collapsible={collapsible}
+      defaultExpanded={defaultExpanded}
+    >
       <div className="space-y-4">
         {/* Status Line */}
         <div className="flex items-center justify-between bg-white/[0.01] border border-white/[0.04] p-3 rounded-xl">
           <span className="text-xs font-medium text-slate-300">Overall Status</span>
-          {getStatusBadge()}
+          {statusBadge}
         </div>
 
         {/* Telemetry Metrics */}
@@ -52,12 +77,7 @@ export default function SummarySection({
           <div className="space-y-1.5 pt-2">
             <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold">Workspace Observations</span>
             <div className="space-y-2 bg-amber-500/[0.01] border border-amber-500/10 p-3 rounded-xl">
-              {warnings.map((w, idx) => (
-                <div key={idx} className="flex items-start gap-2 text-xs text-slate-300">
-                  <AlertTriangle size={13} className="text-amber-500 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed font-sans">{w}</span>
-                </div>
-              ))}
+              {warningsList}
             </div>
           </div>
         )}
@@ -65,3 +85,16 @@ export default function SummarySection({
     </Section>
   );
 }
+
+// React.memo with custom comparison to avoid unnecessary renders
+export default React.memo(SummarySection, (prev, next) => {
+  return (
+    prev.status === next.status &&
+    prev.chunkingLatency === next.chunkingLatency &&
+    prev.embeddingLatency === next.embeddingLatency &&
+    prev.collapsible === next.collapsible &&
+    prev.defaultExpanded === next.defaultExpanded &&
+    JSON.stringify(prev.warnings) === JSON.stringify(next.warnings)
+  );
+});
+

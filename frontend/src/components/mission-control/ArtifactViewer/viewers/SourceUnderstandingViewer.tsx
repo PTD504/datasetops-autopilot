@@ -1,5 +1,5 @@
-import React from "react";
-import { TraceItem } from "../../types";
+import React, { useMemo } from "react";
+import { TraceItem, AgentRun, AgentArtifact } from "../../types";
 import { 
   resolveSourceReportArtifact, 
   resolveSourceUnderstandingRun 
@@ -15,23 +15,43 @@ interface SourceUnderstandingViewerProps {
   traces: TraceItem[];
 }
 
-export default function SourceUnderstandingViewer({
+function SourceUnderstandingViewer({
   projectId,
   workflowStatus,
   traces,
 }: SourceUnderstandingViewerProps) {
   // Extract and resolve source report artifact and agent run from traces
-  const reportData = resolveSourceReportArtifact(traces);
-  const analysisRun = resolveSourceUnderstandingRun(traces);
+  const reportData = useMemo(() => resolveSourceReportArtifact(traces), [traces]);
+  const analysisRun = useMemo(() => resolveSourceUnderstandingRun(traces), [traces]);
 
   // Check if analysis is currently active (prior to final report generation)
-  const isAnalyzing = 
-    workflowStatus === "SOURCE_ANALYZING" || 
-    workflowStatus === "SOURCE_ANALYZED" || 
-    workflowStatus === "PLANNING" ||
-    workflowStatus === "PLAN_READY" ||
-    workflowStatus === "PREPROCESSING" || 
-    (analysisRun && analysisRun.status === "running");
+  const isAnalyzing = useMemo(() => {
+    return (
+      workflowStatus === "SOURCE_ANALYZING" || 
+      workflowStatus === "SOURCE_ANALYZED" || 
+      workflowStatus === "PLANNING" ||
+      workflowStatus === "PLAN_READY" ||
+      workflowStatus === "PREPROCESSING" || 
+      (analysisRun && analysisRun.status === "running")
+    );
+  }, [workflowStatus, analysisRun]);
+
+  // Derive agent run output summary
+  const overallSummary = useMemo(() => {
+    if (!analysisRun) return undefined;
+    return (analysisRun.output_json as any)?.summary || analysisRun.decision_summary || undefined;
+  }, [analysisRun]);
+  
+  // Normalize run warnings to always be string[] or undefined
+  const runWarnings = useMemo(() => {
+    if (!analysisRun?.warnings) return undefined;
+    if (Array.isArray(analysisRun.warnings)) {
+      return analysisRun.warnings;
+    } else if (typeof analysisRun.warnings === "string") {
+      return [analysisRun.warnings];
+    }
+    return undefined;
+  }, [analysisRun]);
 
   // Renders empty/loading state if data is not yet resolved
   if (!reportData) {
@@ -58,19 +78,6 @@ export default function SourceUnderstandingViewer({
     );
   }
 
-  // Derive agent run output summary
-  const overallSummary = (analysisRun?.output_json as any)?.summary || analysisRun?.decision_summary || undefined;
-  
-  // Normalize run warnings to always be string[] or undefined
-  let runWarnings: string[] | undefined = undefined;
-  if (analysisRun?.warnings) {
-    if (Array.isArray(analysisRun.warnings)) {
-      runWarnings = analysisRun.warnings;
-    } else if (typeof analysisRun.warnings === "string") {
-      runWarnings = [analysisRun.warnings];
-    }
-  }
-
   return (
     <div className="flex flex-col gap-5 select-none text-left">
       {/* Overview subtitle description */}
@@ -88,11 +95,15 @@ export default function SourceUnderstandingViewer({
             documents={reportData.document_summaries}
             confidenceScore={reportData.confidence_score}
             overallSummary={overallSummary}
+            collapsible={true}
+            defaultExpanded={true}
           />
           <CoverageSection 
             strongSections={reportData.strong_sections}
             weakSections={reportData.weak_sections}
             unsupportedContent={reportData.unsupported_content}
+            collapsible={true}
+            defaultExpanded={true}
           />
         </div>
 
@@ -101,12 +112,69 @@ export default function SourceUnderstandingViewer({
           <WarningsSection 
             sourceWarnings={reportData.source_warnings}
             runWarnings={runWarnings}
+            collapsible={true}
+            defaultExpanded={true}
           />
           <RecommendationsSection 
             recommendations={reportData.recommended_adjustments_to_plan}
+            collapsible={true}
+            defaultExpanded={true}
           />
         </div>
       </div>
     </div>
   );
 }
+
+// Custom comparison function for React.memo to avoid re-renders caused by polling
+const arePropsEqual = (prevProps: SourceUnderstandingViewerProps, nextProps: SourceUnderstandingViewerProps) => {
+  if (prevProps.projectId !== nextProps.projectId) return false;
+  if (prevProps.workflowStatus !== nextProps.workflowStatus) return false;
+
+  const prevArtifact = prevProps.traces.find(
+    (t) => t.type === "artifact" && (t.data as AgentArtifact).artifact_type === "source_understanding_report"
+  );
+  const nextArtifact = nextProps.traces.find(
+    (t) => t.type === "artifact" && (t.data as AgentArtifact).artifact_type === "source_understanding_report"
+  );
+
+  const prevRun = prevProps.traces.find(
+    (t) =>
+      t.type === "agent_run" &&
+      ((t.data as AgentRun).agent_name.startsWith("SourceUnderstandingAgent") ||
+       (t.data as AgentRun).agent_name === "SourceUnderstandingAgent")
+  );
+  const nextRun = nextProps.traces.find(
+    (t) =>
+      t.type === "agent_run" &&
+      ((t.data as AgentRun).agent_name.startsWith("SourceUnderstandingAgent") ||
+       (t.data as AgentRun).agent_name === "SourceUnderstandingAgent")
+  );
+
+  // If presence of artifact changes, they are not equal
+  if (!!prevArtifact !== !!nextArtifact) return false;
+  if (prevArtifact && nextArtifact) {
+    const prevArtData = prevArtifact.data as AgentArtifact;
+    const nextArtData = nextArtifact.data as AgentArtifact;
+    if (prevArtData.id !== nextArtData.id) return false;
+    if (JSON.stringify(prevArtData.content_json) !== JSON.stringify(nextArtData.content_json)) return false;
+  }
+
+  // If presence of run changes, they are not equal
+  if (!!prevRun !== !!nextRun) return false;
+  if (prevRun && nextRun) {
+    const prevRunData = prevRun.data as AgentRun;
+    const nextRunData = nextRun.data as AgentRun;
+    if (prevRunData.id !== nextRunData.id) return false;
+    if (prevRunData.status !== nextRunData.status) return false;
+    if (prevRunData.completed_at !== nextRunData.completed_at) return false;
+    if (prevRunData.decision_summary !== nextRunData.decision_summary) return false;
+    if (JSON.stringify(prevRunData.warnings) !== JSON.stringify(nextRunData.warnings)) return false;
+    if (JSON.stringify(prevRunData.output_json) !== JSON.stringify(nextRunData.output_json)) return false;
+  }
+
+  return true;
+};
+
+export default React.memo(SourceUnderstandingViewer, arePropsEqual);
+

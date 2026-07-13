@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { TraceItem } from "../../types";
 import { resolvePreprocessing } from "./DataProcessingViewer/utils/preprocessingResolver";
 import SummarySection from "./DataProcessingViewer/components/SummarySection";
@@ -12,16 +12,18 @@ interface DataProcessingViewerProps {
   traces: TraceItem[];
 }
 
-export default function DataProcessingViewer({
+function DataProcessingViewer({
   projectId,
   workflowStatus,
   traces,
 }: DataProcessingViewerProps) {
   // Extract and resolve preprocessing data from traces
-  const prepData = resolvePreprocessing(traces, workflowStatus);
+  const prepData = useMemo(() => resolvePreprocessing(traces, workflowStatus), [traces, workflowStatus]);
 
   // Check if preprocessing is currently active
-  const isProcessing = workflowStatus === "CHUNKING" || workflowStatus === "EMBEDDING" || prepData.status === "running";
+  const isProcessing = useMemo(() => {
+    return workflowStatus === "CHUNKING" || workflowStatus === "EMBEDDING" || prepData.status === "running";
+  }, [workflowStatus, prepData.status]);
 
   // Renders empty/loading state if data is not yet resolved
   if (prepData.docs.length === 0) {
@@ -66,9 +68,13 @@ export default function DataProcessingViewer({
             chunkingLatency={prepData.chunkingLatency}
             embeddingLatency={prepData.embeddingLatency}
             warnings={prepData.warnings}
+            collapsible={true}
+            defaultExpanded={true}
           />
           <DocumentsSection 
             documents={prepData.docs}
+            collapsible={true}
+            defaultExpanded={true}
           />
         </div>
 
@@ -79,15 +85,32 @@ export default function DataProcessingViewer({
             chunkingLatency={prepData.chunkingLatency}
             chunkSize={prepData.chunkSize}
             chunkOverlap={prepData.chunkOverlap}
+            collapsible={true}
+            defaultExpanded={true}
           />
           <EmbeddingSection 
             model={prepData.embeddingModel}
             mode={prepData.embeddingMode}
             embeddingLatency={prepData.embeddingLatency}
             totalChunks={prepData.totalChunks}
+            collapsible={true}
+            defaultExpanded={true}
           />
         </div>
       </div>
     </div>
   );
 }
+
+// React.memo with custom comparison to avoid polling rerenders
+const arePropsEqual = (prevProps: DataProcessingViewerProps, nextProps: DataProcessingViewerProps) => {
+  if (prevProps.projectId !== nextProps.projectId) return false;
+  if (prevProps.workflowStatus !== nextProps.workflowStatus) return false;
+
+  const prevPrep = resolvePreprocessing(prevProps.traces, prevProps.workflowStatus);
+  const nextPrep = resolvePreprocessing(nextProps.traces, nextProps.workflowStatus);
+  return JSON.stringify(prevPrep) === JSON.stringify(nextPrep);
+};
+
+export default React.memo(DataProcessingViewer, arePropsEqual);
+
