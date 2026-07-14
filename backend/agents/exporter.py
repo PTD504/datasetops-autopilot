@@ -119,7 +119,7 @@ class ExportReportAgent(BaseAgent):
             avg_hallucination_risk = sum([e.hallucination_risk_score or 0 for e in evals]) / len(evals)
 
         report_path = os.path.join(export_dir, "quality_report.md")
-        with open(report_path, "w") as f:
+        with open(report_path, "w", encoding="utf-8") as f:
             f.write("# Quality Report\n\n")
 
             f.write(f"## Evaluator Rubric\n")

@@ -17,8 +17,8 @@ def enforce_quota_guardrails(db: Session, project_id: str, raise_on_strict: bool
     if plan.sample_count and isinstance(plan.sample_count, dict):
         requested_total = plan.sample_count.get("total", 10)
 
-    limit = settings.max_samples_per_run_limit
-    mode = settings.BUDGET_GUARDRAIL_MODE.lower()
+    limit = settings.QWEN_MAX_SAMPLES_PER_RUN
+    mode = settings.QWEN_BUDGET_GUARDRAIL_MODE.lower()
 
     if requested_total > limit:
         if mode == "strict":

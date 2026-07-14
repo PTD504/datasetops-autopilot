@@ -128,11 +128,11 @@ class QwenClient:
             if self.budget_guard and not isinstance(e, BudgetExceededError):
                  self.budget_guard.record_usage(self.agent_name, self.model, estimated_input, 0, "error", sanitize_error_message(e))
 
-            if not settings.ALLOW_LLM_FALLBACK:
-                logger.error("ALLOW_LLM_FALLBACK is false. Raising error.")
+            if not settings.QWEN_ALLOW_LLM_FALLBACK:
+                logger.error("QWEN_ALLOW_LLM_FALLBACK is false. Raising error.")
                 raise Exception(f"Qwen API error and fallback disabled: {e}") from e
 
-            logger.warning("Falling back to MOCK Qwen Client due to API error (ALLOW_LLM_FALLBACK=true).")
+            logger.warning("Falling back to MOCK Qwen Client due to API error (QWEN_ALLOW_LLM_FALLBACK=true).")
             # Fallback to mock on error to keep workflow running if possible
             return self._get_mock_response(prompt)
 

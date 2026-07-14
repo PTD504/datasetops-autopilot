@@ -19,8 +19,8 @@ def run_around_tests():
 
 def test_strict_mode_blocks_approval(monkeypatch):
     # Setup settings for strict mode
-    monkeypatch.setattr("backend.api.projects.settings.BUDGET_GUARDRAIL_MODE", "strict")
-    monkeypatch.setattr("backend.api.projects.settings.MAX_SAMPLES_PER_RUN", 5)
+    monkeypatch.setattr("backend.api.projects.settings.QWEN_BUDGET_GUARDRAIL_MODE", "strict")
+    monkeypatch.setattr("backend.api.projects.settings.QWEN_MAX_SAMPLES_PER_RUN", 5)
 
     db = SessionLocal()
     project = Project(name="Strict Test Project", benchmark_request="Test request")
@@ -54,8 +54,8 @@ def test_strict_mode_blocks_approval(monkeypatch):
 
 def test_cap_mode_updates_plan_and_warnings(monkeypatch):
     # Setup settings for cap mode
-    monkeypatch.setattr("backend.api.projects.settings.BUDGET_GUARDRAIL_MODE", "cap")
-    monkeypatch.setattr("backend.api.projects.settings.MAX_SAMPLES_PER_RUN", 5)
+    monkeypatch.setattr("backend.api.projects.settings.QWEN_BUDGET_GUARDRAIL_MODE", "cap")
+    monkeypatch.setattr("backend.api.projects.settings.QWEN_MAX_SAMPLES_PER_RUN", 5)
 
     db = SessionLocal()
     project = Project(name="Cap Test Project", benchmark_request="Test request")
@@ -90,8 +90,8 @@ def test_cap_mode_updates_plan_and_warnings(monkeypatch):
 
 def test_warn_mode_allows_run_with_warnings(monkeypatch):
     # Setup settings for warn mode
-    monkeypatch.setattr("backend.api.projects.settings.BUDGET_GUARDRAIL_MODE", "warn")
-    monkeypatch.setattr("backend.api.projects.settings.MAX_SAMPLES_PER_RUN", 5)
+    monkeypatch.setattr("backend.api.projects.settings.QWEN_BUDGET_GUARDRAIL_MODE", "warn")
+    monkeypatch.setattr("backend.api.projects.settings.QWEN_MAX_SAMPLES_PER_RUN", 5)
 
     db = SessionLocal()
     project = Project(name="Warn Test Project", benchmark_request="Test request")
@@ -159,11 +159,10 @@ def test_download_endpoint_returns_zip_or_error(tmp_path):
 
 
 def test_requested_samples_count_preserved(monkeypatch):
-    monkeypatch.setattr("backend.core.config.settings.QWEN_MAX_SAMPLES_PER_REAL_RUN", 1)
-    monkeypatch.setattr("backend.core.config.settings.MAX_SAMPLES_PER_RUN", 50)
-    monkeypatch.setattr("backend.core.config.settings.BUDGET_GUARDRAIL_MODE", "cap")
+    monkeypatch.setattr("backend.core.config.settings.QWEN_MAX_SAMPLES_PER_RUN", 50)
+    monkeypatch.setattr("backend.core.config.settings.QWEN_BUDGET_GUARDRAIL_MODE", "cap")
 
-    assert settings.max_samples_per_run_limit == 50
+    assert settings.QWEN_MAX_SAMPLES_PER_RUN == 50
 
     db = SessionLocal()
     project = Project(name="Preserve Test Project", benchmark_request="Test request")
@@ -193,8 +192,7 @@ def test_requested_samples_count_preserved(monkeypatch):
 
 
 def test_generator_loops_when_batch_size_one(monkeypatch):
-    monkeypatch.setattr("backend.core.config.settings.QWEN_MAX_SAMPLES_PER_REAL_RUN", 1)
-    monkeypatch.setattr("backend.core.config.settings.RUN_MODE", "real_test")
+    monkeypatch.setattr("backend.core.config.settings.QWEN_RUN_MODE", "real")
     monkeypatch.setattr("backend.core.config.settings.QWEN_API_KEY", "fake-key")
 
     import uuid

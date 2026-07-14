@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class RunBudgetPolicy(BaseModel):
-    max_calls: int = settings.max_llm_calls_limit
+    max_calls: int = settings.QWEN_MAX_CALLS_PER_RUN
     max_input_tokens: int = settings.QWEN_MAX_INPUT_TOKENS_PER_RUN
     max_output_tokens: int = settings.QWEN_MAX_OUTPUT_TOKENS_PER_RUN
     max_total_tokens: int = settings.QWEN_MAX_TOTAL_TOKENS_PER_RUN
@@ -89,7 +89,7 @@ class LLMBudgetGuard:
 
         record = LLMUsageRecord(
             project_id=self.project_id,
-            run_mode=settings.RUN_MODE,
+            run_mode=settings.QWEN_RUN_MODE,
             agent_name=agent_name,
             model=model,
             input_tokens=input_tokens,

@@ -459,14 +459,14 @@ def test_separate_models():
     from backend.core.config import settings
     
     # Backup original values
-    orig_gen = settings.GENERATOR_MODEL
-    orig_eval = settings.EVALUATOR_MODEL
+    orig_gen = settings.QWEN_GENERATOR_MODEL
+    orig_eval = settings.QWEN_EVALUATOR_MODEL
     orig_qwen = settings.QWEN_MODEL
     
     try:
         # 1. Override the models in settings
-        settings.GENERATOR_MODEL = "qwen-generator-test-model"
-        settings.EVALUATOR_MODEL = "qwen-evaluator-test-model"
+        settings.QWEN_GENERATOR_MODEL = "qwen-generator-test-model"
+        settings.QWEN_EVALUATOR_MODEL = "qwen-evaluator-test-model"
         
         # 2. Check the properties resolve correctly
         assert settings.generator_model_name == "qwen-generator-test-model"
@@ -483,8 +483,8 @@ def test_separate_models():
         assert evaluator.llm.model == "qwen-evaluator-test-model"
         
         # 4. If we set them to None, they should fallback to settings.QWEN_MODEL
-        settings.GENERATOR_MODEL = None
-        settings.EVALUATOR_MODEL = None
+        settings.QWEN_GENERATOR_MODEL = None
+        settings.QWEN_EVALUATOR_MODEL = None
         settings.QWEN_MODEL = "fallback-qwen-model"
         
         generator_fallback = BenchmarkGeneratorAgent(db, project_id)
@@ -497,8 +497,8 @@ def test_separate_models():
         print("Separate models test passed")
     finally:
         # Restore original values
-        settings.GENERATOR_MODEL = orig_gen
-        settings.EVALUATOR_MODEL = orig_eval
+        settings.QWEN_GENERATOR_MODEL = orig_gen
+        settings.QWEN_EVALUATOR_MODEL = orig_eval
         settings.QWEN_MODEL = orig_qwen
 
 

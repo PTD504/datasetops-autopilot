@@ -176,8 +176,7 @@ def test_cancelled_project_blocks_real_qwen_call_before_network(monkeypatch):
     db.commit()
     db.refresh(project)
 
-    monkeypatch.setattr("backend.wrappers.qwen_client.settings.RUN_MODE", "real_test")
-    monkeypatch.setattr("backend.wrappers.qwen_client.settings.MOCK_LLM", False)
+    monkeypatch.setattr("backend.wrappers.qwen_client.settings.QWEN_RUN_MODE", "real")
     monkeypatch.setattr("backend.wrappers.qwen_client.settings.QWEN_API_KEY", "dummy-test-key")
 
     client_under_test = QwenClient(project_id=project.id, agent_name="TestAgent", db=db)
@@ -197,8 +196,7 @@ def test_cancelled_project_blocks_real_qwen_call_before_network(monkeypatch):
     db.close()
 
 def test_real_run_mode_overrides_default_mock_flag_when_credentials_exist(monkeypatch):
-    monkeypatch.setattr("backend.wrappers.qwen_client.settings.RUN_MODE", "real_test")
-    monkeypatch.setattr("backend.wrappers.qwen_client.settings.MOCK_LLM", True)
+    monkeypatch.setattr("backend.wrappers.qwen_client.settings.QWEN_RUN_MODE", "real")
     monkeypatch.setattr("backend.wrappers.qwen_client.settings.QWEN_API_KEY", "dummy-test-key")
 
     client_under_test = QwenClient()
@@ -206,8 +204,7 @@ def test_real_run_mode_overrides_default_mock_flag_when_credentials_exist(monkey
     assert client_under_test.use_mock is False
 
 def test_usage_reports_effective_real_mode(monkeypatch):
-    monkeypatch.setattr("backend.core.config.settings.RUN_MODE", "real_test")
-    monkeypatch.setattr("backend.core.config.settings.MOCK_LLM", True)
+    monkeypatch.setattr("backend.core.config.settings.QWEN_RUN_MODE", "real")
     monkeypatch.setattr("backend.core.config.settings.QWEN_API_KEY", "dummy-test-key")
 
     response = client.post("/api/projects/", json={
@@ -221,8 +218,8 @@ def test_usage_reports_effective_real_mode(monkeypatch):
 
     assert usage.status_code == 200
     data = usage.json()
-    assert data["llm_mode"] == "real_test"
-    assert data["run_mode"] == "real_test"
+    assert data["llm_mode"] == "real"
+    assert data["run_mode"] == "real"
     assert data["mock_mode"] is False
 
 def test_usage_reports_failed_and_blocked_attempts_without_secrets():
@@ -236,7 +233,7 @@ def test_usage_reports_failed_and_blocked_attempts_without_secrets():
     db = SessionLocal()
     db.add(LLMUsageRecord(
         project_id=project_id,
-        run_mode="real_test",
+        run_mode="real",
         agent_name="TestAgent",
         model="qwen-plus",
         input_tokens=10,
@@ -248,7 +245,7 @@ def test_usage_reports_failed_and_blocked_attempts_without_secrets():
     ))
     db.add(LLMUsageRecord(
         project_id=project_id,
-        run_mode="real_test",
+        run_mode="real",
         agent_name="TestAgent",
         model="qwen-plus",
         input_tokens=10,

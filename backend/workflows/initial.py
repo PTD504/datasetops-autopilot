@@ -58,6 +58,12 @@ def run_initial_workflow(project_id: str):
         total_chunks = 0
         for doc in docs:
              raise_if_cancelled(db, project_id, "chunking.document")
+             if doc.status == "CHUNKED":
+                 existing_count = db.query(Chunk).filter(Chunk.document_id == doc.id).count()
+                 total_chunks += existing_count
+                 print(f"Document {doc.filename} is already chunked. Skipping chunking.")
+                 continue
+
              start_time = time.time()
              chunks = chunker.chunk(doc.id, doc.content)
              latency = int((time.time() - start_time) * 1000)

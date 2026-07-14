@@ -8,7 +8,7 @@ class LLMUsageRecord(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     project_id = Column(String, ForeignKey("projects.id"))
-    run_mode = Column(String) # mock, real_test, real_full
+    run_mode = Column(String) # mock, real
     agent_name = Column(String)
     model = Column(String)
     input_tokens = Column(Integer, default=0)

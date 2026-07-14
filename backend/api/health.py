@@ -25,11 +25,11 @@ def health_qwen():
 
     return {
         "mock_mode": mock_mode,
-        "run_mode": settings.RUN_MODE,
+        "run_mode": settings.QWEN_RUN_MODE,
         "effective_llm_mode": settings.effective_llm_mode,
         "credentials_configured": creds_configured,
         "model": settings.QWEN_MODEL if not mock_mode else "mock",
-        "fallback_allowed": settings.ALLOW_LLM_FALLBACK,
+        "fallback_allowed": settings.QWEN_ALLOW_LLM_FALLBACK,
         "test_call_success": test_success
     }
 

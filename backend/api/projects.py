@@ -190,7 +190,7 @@ def get_project_usage(project_id: str, db: Session = Depends(get_db)):
         "project_id": project.id,
         "workflow_state": workflow_state_value(project),
         "llm_mode": settings.effective_llm_mode,
-        "run_mode": settings.RUN_MODE,
+        "run_mode": settings.QWEN_RUN_MODE,
         "mock_mode": settings.effective_mock_llm or not settings.QWEN_API_KEY,
         "guardrails_enabled": guard.enabled,
         "attempted_calls": summary.attempted_calls,

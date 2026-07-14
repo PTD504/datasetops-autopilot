@@ -4,6 +4,7 @@ import uvicorn
 import os
 from dotenv import load_dotenv
 
+from backend.core.config import settings
 from backend.api import api_router
 from backend.core.database import Base, engine, ensure_project_cancel_columns
 
@@ -14,7 +15,7 @@ ensure_project_cancel_columns()
 load_dotenv()
 
 # Parse allowed origins from environment variable
-cors_origins_raw = os.getenv("CORS_ORIGINS", "")
+cors_origins_raw = settings.CORS_ORIGINS
 cors_origins = [origin.strip() for origin in cors_origins_raw.split(",") if origin.strip()]
 
 # Always ensure http://localhost:3000 and http://localhost:8000 are in the list
