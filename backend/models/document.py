@@ -6,7 +6,8 @@ from backend.core.database import Base
 
 try:
     from pgvector.sqlalchemy import Vector
-    _VECTOR_TYPE = Vector(1536)
+    from backend.core.config import settings
+    _VECTOR_TYPE = Vector(settings.QWEN_EMBEDDING_DIM)
 except ImportError:
     from sqlalchemy import PickleType
     _VECTOR_TYPE = PickleType()

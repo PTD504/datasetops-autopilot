@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from .config import settings
+import traceback
 
 
 
@@ -35,6 +36,7 @@ def ensure_project_cancel_columns():
                     connection.execute(text(f"ALTER TABLE projects ADD COLUMN {column_name} {column_type}"))
     except Exception as e:
         print(f"Error checking/adding project cancel columns: {e}")
+        print(traceback.format_exc())
 
     try:
         sample_columns = {column["name"] for column in inspector.get_columns("samples")}
@@ -43,6 +45,7 @@ def ensure_project_cancel_columns():
                 connection.execute(text("ALTER TABLE samples ADD COLUMN sample_type VARCHAR DEFAULT 'single_hop'"))
     except Exception as e:
         print(f"Error checking/adding sample columns: {e}")
+        print(traceback.format_exc())
 
     try:
         if inspector.has_table("evaluations"):
@@ -52,11 +55,16 @@ def ensure_project_cancel_columns():
                     connection.execute(text("ALTER TABLE evaluations ADD COLUMN novelty_score FLOAT NULL"))
     except Exception as e:
         print(f"Error checking/adding evaluations columns: {e}")
+        print(traceback.format_exc())
 
 def get_db():
     db = SessionLocal()
     try:
         yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -71,20 +79,22 @@ def _ensure_pgvector_column():
             connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     except Exception as e:
         print(f"Could not enable pgvector extension (expected on SQLite): {e}")
+        print(traceback.format_exc())
 
     try:
         with engine.begin() as connection:
             connection.execute(
-                text("ALTER TABLE chunks ADD COLUMN IF NOT EXISTS embedding_vector vector(1024)")
+                text(f"ALTER TABLE chunks ADD COLUMN IF NOT EXISTS embedding_vector vector({settings.QWEN_EMBEDDING_DIM})")
             )
             try:
                 connection.execute(
-                    text("ALTER TABLE chunks ALTER COLUMN embedding_vector TYPE vector(1024)")
+                    text(f"ALTER TABLE chunks ALTER COLUMN embedding_vector TYPE vector({settings.QWEN_EMBEDDING_DIM})")
                 )
             except Exception:
                 pass
     except Exception as e:
         print(f"Could not add embedding_vector column (expected on SQLite or if already exists): {e}")
+        print(traceback.format_exc())
 
     try:
         with engine.connect() as conn:
@@ -99,40 +109,17 @@ def _ensure_pgvector_column():
                 pass
     except Exception as e:
         print(f"Could not alter workflowstate enum (expected on SQLite): {e}")
-
-def _run_monkeypatches():
-    try:
-        import pgvector.sqlalchemy
-        _original_Vector = pgvector.sqlalchemy.Vector
-
-        class CustomVector(_original_Vector):
-            def __init__(self, dim=None, *args, **kwargs):
-                if dim == 1536:
-                    dim = 1024
-                super().__init__(dim, *args, **kwargs)
-
-        pgvector.sqlalchemy.Vector = CustomVector
-    except Exception as e:
-        print(f"Failed to patch pgvector: {e}")
-
-    try:
-        import backend.pipeline.embedder
-        backend.pipeline.embedder.EMBEDDING_DIM = 1024
-    except Exception as e:
-        print(f"Failed to patch embedder: {e}")
+        print(traceback.format_exc())
 
 # Automatically run schema migrations on import
 try:
-    _run_monkeypatches()
-except Exception as e:
-    pass
-
-try:
     ensure_project_cancel_columns()
 except Exception as e:
-    pass
+    print(f"Error automatically running ensure_project_cancel_columns: {e}")
+    print(traceback.format_exc())
 
 try:
     _ensure_pgvector_column()
 except Exception as e:
-    pass
+    print(f"Error automatically running _ensure_pgvector_column: {e}")
+    print(traceback.format_exc())

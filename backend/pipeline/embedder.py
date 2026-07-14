@@ -10,8 +10,8 @@ from backend.services.workflow_logger import log_workflow_event
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_MODEL = "text-embedding-v3"
-EMBEDDING_DIM = 1536
+EMBEDDING_MODEL = settings.QWEN_EMBEDDING_MODEL
+EMBEDDING_DIM = settings.QWEN_EMBEDDING_DIM
 BATCH_SIZE = 10
 
 

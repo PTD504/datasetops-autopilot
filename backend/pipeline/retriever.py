@@ -170,10 +170,11 @@ class SemanticRetriever:
             from pgvector.sqlalchemy import Vector
             from sqlalchemy import cast
             from sqlalchemy import func
+            from backend.core.config import settings
 
             # <=> is pgvector cosine distance (0 = identical, 2 = opposite).
             cosine_distance = Chunk.embedding_vector.cosine_distance(
-                cast(query_vector, Vector(1536))
+                cast(query_vector, Vector(settings.QWEN_EMBEDDING_DIM))
             )
             rows = (
                 self.db.query(Chunk, cosine_distance.label("distance"))
@@ -247,10 +248,11 @@ class SemanticRetriever:
             from pgvector.sqlalchemy import Vector
             from sqlalchemy import cast
             from sqlalchemy import func
+            from backend.core.config import settings
 
             # <=> is pgvector cosine distance (0 = identical, 2 = opposite).
             cosine_distance = Chunk.embedding_vector.cosine_distance(
-                cast(query_vector, Vector(1536))
+                cast(query_vector, Vector(settings.QWEN_EMBEDDING_DIM))
             )
             rows = (
                 self.db.query(Chunk, cosine_distance.label("distance"))
