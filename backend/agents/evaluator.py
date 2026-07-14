@@ -13,7 +13,7 @@ class QualityEvaluatorAgent(BaseAgent):
         super().__init__(db, project_id, model=settings.evaluator_model_name)
         self.purpose = "Evaluate generated samples and decide if they pass, need repair, or review."
 
-    def evaluate(self, sample: Sample, existing_questions: list = None, existing_chunk_combos: list = None) -> Tuple[Evaluation, bool]:
+    def evaluate(self, sample: Sample, existing_questions: list = None) -> Tuple[Evaluation, bool]:
         self._log_trace("start_evaluation", {"sample_id": sample.id})
 
         # Run duplicate checker

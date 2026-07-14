@@ -319,7 +319,6 @@ def negotiate(
     project_id: str,
     max_turns: int = 2,
     existing_questions: list = None,
-    existing_chunk_combos: list = None,
 ) -> Any:
     """
     Generator-Critic negotiation loop.
@@ -373,7 +372,6 @@ def negotiate(
             eval_result, needs_repair = evaluator.evaluate(
                 sample,
                 existing_questions=existing_questions,
-                existing_chunk_combos=existing_chunk_combos,
             )
             eval_logger.update(
                 decision_summary=(
@@ -511,7 +509,6 @@ def negotiate(
         final_eval_result, _ = evaluator.evaluate(
             sample,
             existing_questions=existing_questions,
-            existing_chunk_combos=existing_chunk_combos,
         )
         final_eval_logger.update(
             decision_summary=(

@@ -1,5 +1,5 @@
 from backend.pipeline.retriever import SemanticRetriever
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 from backend.core.database import SessionLocal
 from backend.core.config import settings
 from backend.models import Project, BenchmarkPlan, Sample, AgentArtifact, Evaluation
@@ -92,12 +92,13 @@ def run_generation_workflow(project_id: str):
         # Seed existing_questions with Sample objects already in the DB for this project.
         # This ensures even the first slot's evaluate() call has full prior context
         # and avoids a full-table query inside evaluate() on every call.
+        # Excludes rejected samples and loads only necessary columns to optimize memory.
         existing_questions: list = list(
-            db.query(Sample).filter(Sample.project_id == project_id).all()
+            db.query(Sample)
+            .filter(Sample.project_id == project_id, Sample.status != SampleStatus.REJECTED)
+            .options(load_only(Sample.id, Sample.question, Sample.source_chunk_ids, Sample.category, Sample.status))
+            .all()
         )
-        existing_chunk_combos: list = [
-            tuple(sorted(s.source_chunk_ids or [])) for s in existing_questions
-        ]
 
         # Idempotency guard: on resume, skip slots that were already generated.
         # Samples with any status other than REJECTED count as successfully generated.
@@ -109,12 +110,12 @@ def run_generation_workflow(project_id: str):
             )
             .count()
         )
-        remaining = total_samples - already_generated
+        
         print(
             f"Resuming generation: {already_generated}/{total_samples} samples already exist,"
-            f" generating {remaining} more"
+            f" generating {total_samples - already_generated} more"
         )
-        slots = slots[:remaining]
+        slots = slots[already_generated:]
 
         # Run generator and evaluator slot-by-slot
         for idx, slot in enumerate(slots):
@@ -146,13 +147,11 @@ def run_generation_workflow(project_id: str):
                 project_id=project_id,
                 max_turns=max_turns,
                 existing_questions=existing_questions,
-                existing_chunk_combos=existing_chunk_combos,
             )
 
             # Append the completed sample object so subsequent slots see it as a
             # duplicate candidate without re-querying the DB.
             existing_questions.append(candidate_sample)
-            existing_chunk_combos.append(tuple(sorted(candidate_sample.source_chunk_ids or [])))
             samples.append(candidate_sample)
 
         # Log Generated Samples Snapshot Artifact
