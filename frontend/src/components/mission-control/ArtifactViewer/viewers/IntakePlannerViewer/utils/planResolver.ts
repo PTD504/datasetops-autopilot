@@ -2,6 +2,7 @@ import { TraceItem, AgentRun, AgentArtifact } from "../../../../types";
 
 export interface PlanData {
   domain?: string;
+  goal?: string;
   language?: string;
   sample_count?: number | { total: number; easy?: number; medium?: number; hard?: number };
   categories?: string[];

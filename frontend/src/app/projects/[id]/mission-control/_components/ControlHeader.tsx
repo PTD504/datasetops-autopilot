@@ -11,7 +11,7 @@ import {
   Play,
   Loader2
 } from "lucide-react";
-import { WorkflowStatus, TraceItem } from "../../../../../components/mission-control/types";
+import { WorkflowStatus, TraceItem, WorkflowEvent } from "../../../../../components/mission-control/types";
 import { useMissionControlStore } from "../../../../../components/mission-control/store/useMissionControlStore";
 import { getWorkflowDerivedState } from "../../../../../components/mission-control/workflowStateHelpers";
 
@@ -51,6 +51,94 @@ export default function ControlHeader({
 
   const { isDownloaded } = useMissionControlStore();
   const derivedState = getWorkflowDerivedState(workflowStatus, projectId);
+
+  const [elapsedText, setElapsedText] = React.useState("00m 00s");
+
+  React.useEffect(() => {
+    if (!traces || traces.length === 0) {
+      setElapsedText("00m 00s");
+      return;
+    }
+
+    const formatElapsedTime = (ms: number) => {
+      if (ms < 0) ms = 0;
+      const totalSeconds = Math.floor(ms / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const pad = (num: number) => String(num).padStart(2, "0");
+
+      if (hours > 0) {
+        return `${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
+      }
+      return `${pad(minutes)}m ${pad(seconds)}s`;
+    };
+
+    const parseUTCString = (dateStr: string) => {
+      if (!dateStr) return "";
+      if (!dateStr.endsWith("Z") && !dateStr.includes("+") && !dateStr.slice(10).includes("-")) {
+        return dateStr + "Z";
+      }
+      return dateStr;
+    };
+
+    const startTime = new Date(parseUTCString(traces[0].timestamp)).getTime();
+    if (isNaN(startTime)) {
+      setElapsedText("00m 00s");
+      return;
+    }
+
+    const calculateActiveElapsedMs = (currentStatus: string) => {
+      const events = traces
+        .filter(t => t.type === "workflow_event")
+        .map(t => t.data as WorkflowEvent);
+
+      let totalPauseMs = 0;
+
+      // 1. Plan Approval Pause
+      const planReady = events.find(e => e.event_type === "plan_ready");
+      const planApproved = events.find(e => e.event_type === "plan_approved");
+      if (planReady) {
+        const pauseStart = new Date(parseUTCString(planReady.created_at)).getTime();
+        if (planApproved) {
+          const pauseEnd = new Date(parseUTCString(planApproved.created_at)).getTime();
+          totalPauseMs += (pauseEnd - pauseStart);
+        } else if (currentStatus === "WAITING_FOR_PLAN_APPROVAL" || currentStatus === "PLAN_READY") {
+          const now = Date.now();
+          totalPauseMs += (now - pauseStart);
+        }
+      }
+
+      // 2. Sample Review Pause
+      const sampleWaiting = events.find(e => e.event_type === "waiting_for_sample_review");
+      const sampleApproved = events.find(e => e.event_type === "sample_review_approved");
+      if (sampleWaiting) {
+        const pauseStart = new Date(parseUTCString(sampleWaiting.created_at)).getTime();
+        if (sampleApproved) {
+          const pauseEnd = new Date(parseUTCString(sampleApproved.created_at)).getTime();
+          totalPauseMs += (pauseEnd - pauseStart);
+        } else if (currentStatus === "WAITING_FOR_SAMPLE_REVIEW") {
+          const now = Date.now();
+          totalPauseMs += (now - pauseStart);
+        }
+      }
+
+      const isTerminal = ["DONE", "FAILED", "CANCELLED", "EXPORT_READY"].includes(currentStatus);
+      const endTime = isTerminal 
+        ? new Date(parseUTCString(traces[traces.length - 1].timestamp)).getTime() 
+        : Date.now();
+
+      return endTime - startTime - totalPauseMs;
+    };
+
+    const updateElapsed = () => {
+      setElapsedText(formatElapsedTime(calculateActiveElapsedMs(workflowStatus)));
+    };
+
+    updateElapsed();
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [traces, workflowStatus]);
 
   const getLastActiveState = (): WorkflowStatus => {
     if (workflowStatus !== "FAILED") return workflowStatus;
@@ -284,8 +372,8 @@ export default function ControlHeader({
           {/* Elapsed Time */}
           <div className="flex items-center gap-1">
             <Clock size={10} className="text-slate-550" />
-            <span className="text-slate-500 font-bold uppercase text-[8px] tracking-wider">Elapsed:</span>
-            <span className="font-mono font-bold text-slate-300">01m 48s</span>
+            <span className="text-slate-550 font-bold uppercase text-[8px] tracking-wider">Elapsed:</span>
+            <span className="font-mono font-bold text-slate-300">{elapsedText}</span>
           </div>
 
           <div className="w-[1px] h-2.5 bg-white/10 hidden sm:block"></div>

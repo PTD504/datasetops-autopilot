@@ -246,6 +246,7 @@ def approve_plan(project_id: str, background_tasks: BackgroundTasks, db: Session
             summary=f"Plan approved by human review with total samples: {plan_total}.",
             content_json={
                 "domain": "RAG Evaluation",
+                "goal": plan.goal,
                 "language": plan.language or "English",
                 "sample_count": plan_total,
                 "categories": plan.categories or [],

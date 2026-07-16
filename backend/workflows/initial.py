@@ -202,6 +202,7 @@ def run_initial_workflow(project_id: str):
             summary=f"Drafted benchmark plan targeting {plan_total} samples across categories: {', '.join(plan.categories or [])}.",
             content_json={
                 "domain": "RAG Evaluation",
+                "goal": plan.goal,
                 "language": plan.language or "English",
                 "sample_count": plan_total,
                 "categories": plan.categories or [],
