@@ -84,7 +84,7 @@ export default function ExportViewer({
 
   // Handle entire package zip download redirection
   const handleDownloadAll = () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const apiUrl = "";
     const downloadUrl = `${apiUrl}/api/projects/${projectId}/export/download`;
     
     // Download using a hidden anchor tag to prevent browser tab flashing/stuttering

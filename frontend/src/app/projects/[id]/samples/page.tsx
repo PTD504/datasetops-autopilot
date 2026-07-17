@@ -130,6 +130,7 @@ export default function SamplesReview() {
   const router = useRouter()
   const id = params.id as string
   const [samples, setSamples] = useState<SampleData[]>([])
+  const apiUrl = "";
   const [expandedSampleIds, setExpandedSampleIds] = useState<Record<string, boolean>>({})
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
@@ -138,7 +139,7 @@ export default function SamplesReview() {
     setExporting(true)
     setExportError(null)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/samples/approve-and-export`, {
+      const res = await fetch(`${apiUrl}/api/projects/${id}/samples/approve-and-export`, {
         method: "POST"
       })
       if (res.ok) {
@@ -184,7 +185,7 @@ export default function SamplesReview() {
   }
 
   const fetchSamples = () => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/samples`)
+    fetch(`${apiUrl}/api/projects/${id}/samples`)
       .then(r => r.json())
       .then(setSamples)
       .catch(console.error)
@@ -203,7 +204,7 @@ export default function SamplesReview() {
 
   const handleApprove = async (sampleId: string) => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/samples/${sampleId}/approve`, {
+      const res = await fetch(`${apiUrl}/api/projects/${id}/samples/${sampleId}/approve`, {
         method: "POST"
       })
       if (res.ok) {
@@ -220,7 +221,7 @@ export default function SamplesReview() {
 
   const handleReject = async (sampleId: string) => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/samples/${sampleId}/reject`, {
+      const res = await fetch(`${apiUrl}/api/projects/${id}/samples/${sampleId}/reject`, {
         method: "POST"
       })
       if (res.ok) {
@@ -253,7 +254,7 @@ export default function SamplesReview() {
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/samples/${editingSample.id}`, {
+      const res = await fetch(`${apiUrl}/api/projects/${id}/samples/${editingSample.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

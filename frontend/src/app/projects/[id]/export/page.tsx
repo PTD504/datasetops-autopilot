@@ -20,13 +20,14 @@ interface ExportSummary {
 }
 
 export default function ExportPage() {
+  const apiUrl = ""
   const params = useParams()
   const id = params.id as string
   const [summary, setSummary] = useState<ExportSummary | null>(null)
   const [regenerating, setRegenerating] = useState(false)
 
   const fetchSummary = () => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/export/summary`)
+    fetch(`${apiUrl}/api/projects/${id}/export/summary`)
       .then(r => r.json())
       .then(setSummary)
       .catch(console.error)
@@ -39,7 +40,7 @@ export default function ExportPage() {
   const handleRegenerate = async () => {
     setRegenerating(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/export`, {
+      const res = await fetch(`${apiUrl}/api/projects/${id}/export`, {
         method: "POST"
       })
       if (res.ok) {
@@ -146,7 +147,7 @@ export default function ExportPage() {
              <div className="text-center space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Button size="lg" className="w-full sm:w-auto px-12 h-14 text-lg rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all" onClick={() => {
-                    const downloadUrl = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/projects/${id}/export/download`;
+                    const downloadUrl = `${apiUrl}/api/projects/${id}/export/download`;
                     window.location.href = downloadUrl;
                   }}>
                     Download Complete Package

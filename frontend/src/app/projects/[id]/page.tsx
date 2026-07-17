@@ -28,7 +28,7 @@ export default function ProjectStatus() {
       setTraceLoading(true)
     }
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      const apiUrl = ""
       const res = await fetch(`${apiUrl}/api/projects/${id}/trace`)
       if (res.ok) {
         const data = await res.json()
@@ -56,7 +56,7 @@ export default function ProjectStatus() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      const apiUrl = ""
       const res = await fetch(`${apiUrl}/api/projects/${id}/status`)
       if (res.ok) {
         const data = await res.json()
@@ -105,7 +105,7 @@ export default function ProjectStatus() {
 
   const handleStop = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      const apiUrl = ""
       await fetch(`${apiUrl}/api/projects/${id}/stop`, { method: "POST" })
       fetchStatus()
     } catch (e) {
@@ -114,7 +114,7 @@ export default function ProjectStatus() {
   }
 
   const handleResume = async () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+    const apiUrl = ""
     const res = await fetch(`${apiUrl}/api/projects/${id}/resume`, { method: "POST" })
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));

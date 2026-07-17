@@ -189,7 +189,7 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
   // Helper to approve sample
   const handleApprove = async (sampleId: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = "";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sampleId}/approve`, {
         method: "POST"
       });
@@ -211,7 +211,7 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
   // Helper to reject sample
   const handleReject = async (sampleId: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = "";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sampleId}/reject`, {
         method: "POST"
       });
@@ -243,7 +243,7 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
     setIsBulkProcessing(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = "";
       const promises = visiblePendingReviews.map(async (sample) => {
         const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sample.id}/${action}`, {
           method: "POST"
@@ -298,7 +298,7 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
     setSaving(true);
     setSaveError(null);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = "";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sampleId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -338,7 +338,7 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
   const handleApproveAndExport = async () => {
     setIsExporting(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = "";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/approve-and-export`, {
         method: "POST",
       });

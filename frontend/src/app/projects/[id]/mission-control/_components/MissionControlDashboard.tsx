@@ -87,7 +87,7 @@ export default function MissionControlDashboard({
     let active = true;
     const fetchSamples = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const apiUrl = "";
         const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples`);
         if (res.ok && active) {
           const data = await res.json();

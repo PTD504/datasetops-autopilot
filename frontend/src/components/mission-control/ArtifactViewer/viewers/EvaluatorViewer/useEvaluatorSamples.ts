@@ -47,7 +47,7 @@ export function useEvaluatorSamples(projectId: string) {
     const fetchSamples = async () => {
       try {
         setLoading(true);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const apiUrl = "";
         const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples`);
         if (!res.ok) {
           throw new Error(`Error fetching samples: ${res.statusText}`);

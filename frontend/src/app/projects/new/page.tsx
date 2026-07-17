@@ -92,7 +92,7 @@ export default function NewProject() {
     setLoading(true)
     setError(null)
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      const apiUrl = ""
       const res = await fetch(`${apiUrl}/api/projects/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -39,7 +39,7 @@ export default function PlanReviewDrawer({
     setLoading(true);
     setError(null);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = "";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/plan`);
       if (res.ok) {
         const data = await res.json();
@@ -69,7 +69,7 @@ export default function PlanReviewDrawer({
     setIsSaving(true);
     setError(null);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = "";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/plan`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -99,7 +99,7 @@ export default function PlanReviewDrawer({
     setIsApproving(true);
     setApproveError(null);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const apiUrl = "";
       const res = await fetch(`${apiUrl}/api/projects/${projectId}/plan/approve`, {
         method: "POST",
       });
