@@ -93,7 +93,7 @@ export default function NewProject() {
     setError(null)
     try {
       const apiUrl = ""
-      const res = await fetch(`${apiUrl}/api/projects/`, {
+      const res = await fetch(`${apiUrl}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

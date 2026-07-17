@@ -26,7 +26,7 @@ from backend.services.cancellation import (
 router = APIRouter()
 
 
-@router.post("/", response_model=ProjectResponse)
+@router.post("", response_model=ProjectResponse)
 def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
     db_project = Project(
         name=project.name,
