@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   db:
     image: pgvector/pgvector:pg15
@@ -29,24 +27,6 @@ services:
       - ./backend:/app/backend
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/datasetops
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8000}
-      - STORAGE_MODE=${STORAGE_MODE:-local}
-      - QWEN_RUN_MODE=${QWEN_RUN_MODE:-mock}
-      - QWEN_ALLOW_LLM_FALLBACK=${QWEN_ALLOW_LLM_FALLBACK:-true}
-      - QWEN_API_KEY=${QWEN_API_KEY:-}
-      - QWEN_BASE_URL=${QWEN_BASE_URL:-https://dashscope-intl.aliyuncs.com/compatible-mode/v1}
-      - QWEN_MODEL=${QWEN_MODEL:-qwen-plus}
-      - QWEN_GUARDRAILS_ENABLED=${QWEN_GUARDRAILS_ENABLED:-true}
-      - QWEN_MAX_CALLS_PER_RUN=${QWEN_MAX_CALLS_PER_RUN:-150}
-      - QWEN_MAX_INPUT_TOKENS_PER_RUN=${QWEN_MAX_INPUT_TOKENS_PER_RUN:-100000}
-      - QWEN_MAX_OUTPUT_TOKENS_PER_RUN=${QWEN_MAX_OUTPUT_TOKENS_PER_RUN:-20000}
-      - QWEN_MAX_TOTAL_TOKENS_PER_RUN=${QWEN_MAX_TOTAL_TOKENS_PER_RUN:-120000}
-      - QWEN_MAX_ESTIMATED_COST_USD_PER_RUN=${QWEN_MAX_ESTIMATED_COST_USD_PER_RUN:-1.0}
-      - QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE=${QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE:-1}
-      - QWEN_STOP_ON_BUDGET_EXCEEDED=${QWEN_STOP_ON_BUDGET_EXCEEDED:-true}
-      - QWEN_MAX_SAMPLES_PER_RUN=${QWEN_MAX_SAMPLES_PER_RUN:-50}
-      - QWEN_BUDGET_GUARDRAIL_MODE=${QWEN_BUDGET_GUARDRAIL_MODE:-cap}
-      - LOCAL_STORAGE_DIR=${LOCAL_STORAGE_DIR:-/app/backend/storage}
       - PYTHONPATH=/app
     depends_on:
       db:
