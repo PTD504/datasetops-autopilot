@@ -31,6 +31,7 @@ interface MissionControlDashboardProps {
   error: boolean;
   onStopWorkflow: () => void;
   onResumeWorkflow: () => Promise<void>;
+  clockDrift?: number;
 }
 
 export default function MissionControlDashboard({ 
@@ -44,6 +45,7 @@ export default function MissionControlDashboard({
   error,
   onStopWorkflow,
   onResumeWorkflow,
+  clockDrift = 0,
 }: MissionControlDashboardProps) {
   const {
     selectedNodeId,
@@ -184,6 +186,7 @@ export default function MissionControlDashboard({
         traces={activeTraces}
         onResumeWorkflow={handleResumeWorkflow}
         isResuming={isResuming}
+        clockDrift={clockDrift}
       />
 
       {/* Contextual Workflow Banner */}

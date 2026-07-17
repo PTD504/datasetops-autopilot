@@ -25,6 +25,7 @@ interface ControlHeaderProps {
   traces?: TraceItem[];
   onResumeWorkflow?: () => void;
   isResuming?: boolean;
+  clockDrift?: number;
 }
 
 export default function ControlHeader({
@@ -37,6 +38,7 @@ export default function ControlHeader({
   traces = [],
   onResumeWorkflow,
   isResuming = false,
+  clockDrift = 0,
 }: ControlHeaderProps) {
   
   // Define all possible states in chronological order to calculate progress
@@ -104,7 +106,7 @@ export default function ControlHeader({
           const pauseEnd = new Date(parseUTCString(planApproved.created_at)).getTime();
           totalPauseMs += (pauseEnd - pauseStart);
         } else if (currentStatus === "WAITING_FOR_PLAN_APPROVAL" || currentStatus === "PLAN_READY") {
-          const now = Date.now();
+          const now = Date.now() + clockDrift;
           totalPauseMs += (now - pauseStart);
         }
       }
@@ -118,7 +120,7 @@ export default function ControlHeader({
           const pauseEnd = new Date(parseUTCString(sampleApproved.created_at)).getTime();
           totalPauseMs += (pauseEnd - pauseStart);
         } else if (currentStatus === "WAITING_FOR_SAMPLE_REVIEW") {
-          const now = Date.now();
+          const now = Date.now() + clockDrift;
           totalPauseMs += (now - pauseStart);
         }
       }
@@ -126,7 +128,7 @@ export default function ControlHeader({
       const isTerminal = ["DONE", "FAILED", "CANCELLED", "EXPORT_READY"].includes(currentStatus);
       const endTime = isTerminal 
         ? new Date(parseUTCString(traces[traces.length - 1].timestamp)).getTime() 
-        : Date.now();
+        : Date.now() + clockDrift;
 
       return endTime - startTime - totalPauseMs;
     };
@@ -138,7 +140,7 @@ export default function ControlHeader({
     updateElapsed();
     const interval = setInterval(updateElapsed, 1000);
     return () => clearInterval(interval);
-  }, [traces, workflowStatus]);
+  }, [traces, workflowStatus, clockDrift]);
 
   const getLastActiveState = (): WorkflowStatus => {
     if (workflowStatus !== "FAILED") return workflowStatus;

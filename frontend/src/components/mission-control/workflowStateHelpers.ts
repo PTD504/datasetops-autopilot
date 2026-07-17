@@ -149,7 +149,7 @@ const STATE_CONFIG_REGISTRY: Record<WorkflowStatus, StateConfig> = {
     shouldDimGraph: false,
     isPaused: false,
     bannerTitle: "Running",
-    bannerDescription: "Generator is producing benchmark samples...",
+    bannerDescription: "Generator and Quality Evaluator are co-operating to produce and verify benchmark samples...",
     bannerType: "running",
   },
   VALIDATING: {
@@ -157,7 +157,7 @@ const STATE_CONFIG_REGISTRY: Record<WorkflowStatus, StateConfig> = {
     shouldDimGraph: false,
     isPaused: false,
     bannerTitle: "Running",
-    bannerDescription: "Generator is validating sample schema compliance...",
+    bannerDescription: "Generator and Quality Evaluator are validating schema and sample compliance...",
     bannerType: "running",
   },
   EVALUATING: {
@@ -165,7 +165,7 @@ const STATE_CONFIG_REGISTRY: Record<WorkflowStatus, StateConfig> = {
     shouldDimGraph: false,
     isPaused: false,
     bannerTitle: "Running",
-    bannerDescription: "Quality evaluator is running RAG compliance checks...",
+    bannerDescription: "Quality Evaluator is performing RAG compliance checks on the generated samples...",
     bannerType: "running",
   },
   REPAIRING: {
@@ -173,7 +173,7 @@ const STATE_CONFIG_REGISTRY: Record<WorkflowStatus, StateConfig> = {
     shouldDimGraph: false,
     isPaused: false,
     bannerTitle: "Running",
-    bannerDescription: "Quality evaluator has requested corrections. Repair loop active...",
+    bannerDescription: "Generator is repairing samples based on Quality Evaluator corrections...",
     bannerType: "running",
   },
   WAITING_FOR_SAMPLE_REVIEW: {

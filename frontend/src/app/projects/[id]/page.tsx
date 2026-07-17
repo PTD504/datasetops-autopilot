@@ -22,34 +22,7 @@ export default function ProjectStatus() {
   const [artifacts, setArtifacts] = useState<AgentArtifact[]>([])
   const [traceLoading, setTraceLoading] = useState(true)
   const [traceError, setTraceError] = useState(false)
-
-  const fetchTrace = useCallback(async (showLoading = false) => {
-    if (showLoading) {
-      setTraceLoading(true)
-    }
-    try {
-      const apiUrl = ""
-      const res = await fetch(`${apiUrl}/api/projects/${id}/trace`)
-      if (res.ok) {
-        const data = await res.json()
-        setCombinedTrace(data)
-        setTraceError(false)
-      } else {
-        setTraceError(true)
-      }
-
-      const artRes = await fetch(`${apiUrl}/api/projects/${id}/artifacts`)
-      if (artRes.ok) {
-        const artData = await artRes.json()
-        setArtifacts(artData)
-      }
-    } catch (e) {
-      console.error("Failed to fetch combined trace or artifacts", e)
-      setTraceError(true)
-    } finally {
-      setTraceLoading(false)
-    }
-  }, [id])
+  const [clockDrift, setClockDrift] = useState(0)
 
   const terminalStates = ["DONE", "FAILED", "CANCELLED", "EXPORT_READY"]
   const isFinished = terminalStates.includes(status)
@@ -57,29 +30,64 @@ export default function ProjectStatus() {
   const fetchStatus = useCallback(async () => {
     try {
       const apiUrl = ""
-      const res = await fetch(`${apiUrl}/api/projects/${id}/status`)
+      const [res, usageRes, tracesRes, traceRes, artRes] = await Promise.all([
+        fetch(`${apiUrl}/api/projects/${id}/status`, { cache: "no-store" }),
+        fetch(`${apiUrl}/api/projects/${id}/usage`, { cache: "no-store" }),
+        fetch(`${apiUrl}/api/projects/${id}/traces`, { cache: "no-store" }),
+        fetch(`${apiUrl}/api/projects/${id}/trace`, { cache: "no-store" }),
+        fetch(`${apiUrl}/api/projects/${id}/artifacts`, { cache: "no-store" }),
+      ])
+
+      let nextStatus = "LOADING"
+      let nextUsage = null
+      let nextTraces: RawTraceItem[] = []
+      let nextCombinedTrace: TraceItem[] = []
+      let nextArtifacts: AgentArtifact[] = []
+      let hasTraceError = false
+
       if (res.ok) {
+        const serverTimeHeader = res.headers.get("Date")
+        if (serverTimeHeader) {
+          const serverTime = new Date(serverTimeHeader).getTime()
+          const clientTime = Date.now()
+          setClockDrift(prev => prev === 0 ? (serverTime - clientTime) : prev)
+        }
         const data = await res.json()
-        setStatus(data.workflow_state)
+        nextStatus = data.workflow_state
       }
 
-      const usageRes = await fetch(`${apiUrl}/api/projects/${id}/usage`)
       if (usageRes.ok) {
-        const usageData = await usageRes.json()
-        setUsage(usageData)
+        nextUsage = await usageRes.json()
       }
 
-      const tracesRes = await fetch(`${apiUrl}/api/projects/${id}/traces`)
       if (tracesRes.ok) {
-        const tracesData = await tracesRes.json()
-        setTraces(tracesData)
+        nextTraces = await tracesRes.json()
       }
 
-      await fetchTrace(false)
+      if (traceRes.ok) {
+        nextCombinedTrace = await traceRes.json()
+        hasTraceError = false
+      } else {
+        hasTraceError = true
+      }
+
+      if (artRes.ok) {
+        nextArtifacts = await artRes.json()
+      }
+
+      setStatus(nextStatus)
+      setUsage(nextUsage)
+      setTraces(nextTraces)
+      setCombinedTrace(nextCombinedTrace)
+      setArtifacts(nextArtifacts)
+      setTraceError(hasTraceError)
+      setTraceLoading(false)
     } catch (e) {
       console.error(e)
+      setTraceError(true)
+      setTraceLoading(false)
     }
-  }, [id, fetchTrace])
+  }, [id])
 
   useEffect(() => {
     let stopped = false
@@ -150,6 +158,7 @@ export default function ProjectStatus() {
             error={traceError}
             onStopWorkflow={handleStop}
             onResumeWorkflow={handleResume}
+            clockDrift={clockDrift}
           />
         </MissionControlProvider>
       </main>
