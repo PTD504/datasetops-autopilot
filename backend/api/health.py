@@ -6,6 +6,10 @@ import logging
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+@router.get("")
+def health_check():
+    return {"status": "ok", "version": "1.0.0"}
+
 @router.get("/qwen")
 def health_qwen():
     mock_mode = settings.effective_mock_llm or not settings.QWEN_API_KEY
@@ -28,7 +32,12 @@ def health_qwen():
         "run_mode": settings.QWEN_RUN_MODE,
         "effective_llm_mode": settings.effective_llm_mode,
         "credentials_configured": creds_configured,
-        "model": settings.QWEN_MODEL if not mock_mode else "mock",
+        "models": {
+            "qwen_model": settings.QWEN_MODEL if not mock_mode else "mock",
+            "qwen_generator_model": settings.generator_model_name if not mock_mode else "mock",
+            "qwen_evaluator_model": settings.evaluator_model_name if not mock_mode else "mock",
+            "qwen_embedding_model": settings.QWEN_EMBEDDING_MODEL if not mock_mode else "mock",
+        },
         "fallback_allowed": settings.QWEN_ALLOW_LLM_FALLBACK,
         "test_call_success": test_success
     }

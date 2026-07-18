@@ -18,7 +18,7 @@ Base.metadata.create_all(bind=engine)
 client = TestClient(app)
 
 def test_health():
-    response = client.get("/health")
+    response = client.get("/api/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "version": "1.0.0"}
 

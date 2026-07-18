@@ -28,7 +28,8 @@ def test_health_qwen_endpoint():
     data = response.json()
     assert "mock_mode" in data
     assert "credentials_configured" in data
-    assert "model" in data
+    assert "models" in data
+    assert "qwen_model" in data["models"]
     assert "fallback_allowed" in data
 
 def test_health_storage_endpoint():
