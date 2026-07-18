@@ -16,7 +16,7 @@ def test_oss_client_initialization_failure(monkeypatch):
 
 def test_oss_client_local_fallback_initialization(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "STORAGE_MODE", "local")
-    monkeypatch.setattr(settings, "LOCAL_STORAGE_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "EXPORTS_DIR", str(tmp_path))
 
     oss = AlibabaOSSClient()
     assert oss.use_local is True

@@ -24,7 +24,7 @@ class AlibabaOSSClient:
             self.endpoint_url = f"https://{settings.ALIBABA_CLOUD_OSS_BUCKET}.{settings.ALIBABA_CLOUD_OSS_ENDPOINT}"
             logger.info(f"Using Alibaba Cloud OSS: {settings.ALIBABA_CLOUD_OSS_BUCKET}")
         else:
-            self.local_dir = settings.LOCAL_STORAGE_DIR
+            self.local_dir = settings.EXPORTS_DIR
             os.makedirs(self.local_dir, exist_ok=True)
             logger.info(f"Using Local Storage at {self.local_dir}")
 
@@ -33,7 +33,12 @@ class AlibabaOSSClient:
         Uploads a file and returns its URL.
         """
         if self.use_local:
-            dest_path = os.path.join(self.local_dir, object_name)
+            relative_name = object_name
+            if relative_name.startswith("exports/"):
+                relative_name = relative_name[len("exports/"):]
+            dest_path = os.path.join(self.local_dir, relative_name)
+            if os.path.abspath(dest_path) == os.path.abspath(file_path):
+                return f"file://{os.path.abspath(dest_path)}"
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
             # Simple copy
@@ -53,7 +58,12 @@ class AlibabaOSSClient:
         Downloads a file from storage.
         """
         if self.use_local:
-            src_path = os.path.join(self.local_dir, object_name)
+            relative_name = object_name
+            if relative_name.startswith("exports/"):
+                relative_name = relative_name[len("exports/"):]
+            src_path = os.path.join(self.local_dir, relative_name)
+            if os.path.abspath(src_path) == os.path.abspath(dest_path):
+                return
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             with open(src_path, 'rb') as src, open(dest_path, 'wb') as dst:
                 dst.write(src.read())
@@ -62,6 +72,9 @@ class AlibabaOSSClient:
 
     def get_signed_url(self, object_name: str, expires: int = 3600) -> str:
         if self.use_local:
-             return f"file://{os.path.abspath(os.path.join(self.local_dir, object_name))}"
+             relative_name = object_name
+             if relative_name.startswith("exports/"):
+                 relative_name = relative_name[len("exports/"):]
+             return f"file://{os.path.abspath(os.path.join(self.local_dir, relative_name))}"
         else:
             return self.bucket.sign_url('GET', object_name, expires)

@@ -26,7 +26,6 @@ class Settings(BaseSettings):
     ALIBABA_CLOUD_OSS_BUCKET: Optional[str] = None
 
     STORAGE_MODE: str = "local"
-    LOCAL_STORAGE_DIR: str = (BACKEND_DIR / "storage").as_posix()
     EXPORTS_DIR: str = (BACKEND_DIR / "exports").as_posix()
     UPLOADS_DIR: str = (BACKEND_DIR / "uploads").as_posix()
     QWEN_ALLOW_LLM_FALLBACK: bool = True

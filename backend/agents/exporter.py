@@ -212,6 +212,23 @@ class ExportReportAgent(BaseAgent):
             url = self.oss_client.upload_file(object_name, path)
             file_urls[fname] = url
 
+        # Delete local files if we successfully uploaded to real OSS
+        if not self.oss_client.use_local:
+            import logging
+            logger = logging.getLogger(__name__)
+            for fname, path in [
+                ("rag_eval.jsonl", eval_path),
+                ("answer_key.jsonl", answer_path),
+                ("dataset_card.md", card_path),
+                ("quality_report.md", report_path),
+                ("export.zip", zip_path)
+            ]:
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except Exception as e:
+                    logger.warning(f"Failed to remove local export file {path} after successful OSS upload: {e}")
+
         export_record = Export(
             project_id=self.project_id,
             status="READY",

@@ -27,12 +27,6 @@ def resolve_export_download_path(db: Session, project_id: str, export_record: Ex
             local_path = p
 
     if not local_path:
-        # Check settings local storage dir
-        p = os.path.join(settings.LOCAL_STORAGE_DIR, f"exports/{project_id}/export.zip")
-        if os.path.exists(p):
-            local_path = p
-
-    if not local_path:
         # Check backend build directory fallback
         p = os.path.join(settings.EXPORTS_DIR, project_id, "export.zip")
         if os.path.exists(p):
