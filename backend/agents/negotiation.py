@@ -317,7 +317,8 @@ def negotiate(
     evaluator: Any,
     db: Session,
     project_id: str,
-    max_turns: int = 2,
+    max_turns: int = 2
+    ,
     existing_questions: list = None,
 ) -> Any:
     """

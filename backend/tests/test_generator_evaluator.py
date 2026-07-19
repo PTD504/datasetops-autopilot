@@ -299,6 +299,7 @@ def test_evaluate_skips_db_query_when_existing_questions_provided():
 def test_unanswerable_decision_routing_regression():
     from unittest.mock import MagicMock
     from backend.models.enums import SampleStatus
+    from backend.core.config import settings
 
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -426,7 +427,7 @@ def test_unanswerable_decision_routing_regression():
         question="What is W?",
         expected_answer="Another borderline answer.",
         source_chunk_ids=["chunk_1"],
-        retry_count=2
+        retry_count=settings.QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE
     )
     db.add(sample_borderline_review)
     db.commit()

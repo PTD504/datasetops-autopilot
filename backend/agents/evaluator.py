@@ -166,7 +166,7 @@ class QualityEvaluatorAgent(BaseAgent):
                  decision = "reject"
                  status = SampleStatus.REJECTED
                  needs_repair = False
-            elif sample.retry_count < 2:
+            elif sample.retry_count < settings.QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE:
                 decision = "repair"
                 status = SampleStatus.REPAIRING
                 needs_repair = True
@@ -184,7 +184,7 @@ class QualityEvaluatorAgent(BaseAgent):
                 status = SampleStatus.APPROVED
                 needs_repair = False
             elif 0.60 <= overall_score < 0.80 or faithfulness_score < self.FAITHFULNESS_PASS_THRESHOLD:
-                if sample.retry_count < 2: # max retries = 2
+                if sample.retry_count < settings.QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE: # max retries = QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE
                     decision = "repair"
                     status = SampleStatus.REPAIRING
                     needs_repair = True
@@ -207,7 +207,7 @@ class QualityEvaluatorAgent(BaseAgent):
 
         if novelty_score < 0.18:
             repair_instruction = "Regenerate using a different user scenario and evidence angle while preserving category and difficulty."
-            if sample.retry_count < 2:
+            if sample.retry_count < settings.QWEN_MAX_REPAIR_ATTEMPTS_PER_SAMPLE:
                 decision = "repair"
                 status = SampleStatus.REPAIRING
                 needs_repair = True
