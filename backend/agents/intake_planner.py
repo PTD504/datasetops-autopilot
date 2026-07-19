@@ -1,7 +1,11 @@
 from typing import Dict, Any, List
+import logging
 from sqlalchemy.orm import Session
 from .base import BaseAgent
+from .utils import normalize_categories
 from backend.models import BenchmarkPlan, Project
+
+logger = logging.getLogger(__name__)
 
 class IntakePlannerAgent(BaseAgent):
     def __init__(self, db: Session, project_id: str):
@@ -76,12 +80,25 @@ class IntakePlannerAgent(BaseAgent):
         - Do NOT include unsupported categories unless explicitly required by the benchmark request.
         - Surface any mismatch between the benchmark goal and actual document coverage in quality_rules.
 
-        Output JSON with these keys: goal, language, sample_count (dict with total, easy, medium, hard), categories (list), quality_rules (list).
+        Output JSON format constraints:
+        - The JSON must have these keys: goal, language, sample_count (dict with total, easy, medium, hard), categories (list), quality_rules (list).
+        - IMPORTANT: "categories" MUST be a flat list of strings only (e.g., ["refund policy", "shipping policy"]).
+        - IMPORTANT: Do NOT wrap categories in dictionaries or objects (e.g., do NOT output [{{"name": "refund policy", "score": 0.9}}]). All coverage or score data must be ignored in the output categories list.
+
+        Example of correct output categories formatting:
+        {{
+          "goal": "Evaluate customer support on refund and shipping policy",
+          "language": "English",
+          "sample_count": {{"total": 20, "easy": 10, "medium": 5, "hard": 5}},
+          "categories": ["refund policy", "shipping policy"],
+          "quality_rules": ["Questions must be grounded in source documents."]
+        }}
         """
 
         response = self.llm.generate_json(prompt, system_prompt="You are an expert RAG Benchmark Planner. Output JSON.")
 
         proposed_categories = response.get("categories", ["General"])
+        proposed_categories = normalize_categories(proposed_categories, fallback=["General"])
 
         if coverage_by_category:
             supported_set = {

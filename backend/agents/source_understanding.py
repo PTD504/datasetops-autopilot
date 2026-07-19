@@ -2,6 +2,7 @@ from typing import Dict, Any, Tuple, List
 import logging
 from sqlalchemy.orm import Session
 from .base import BaseAgent
+from .utils import normalize_categories
 from backend.models import Chunk, Document, Project, BenchmarkPlan
 
 logger = logging.getLogger(__name__)
@@ -25,15 +26,13 @@ class SourceUnderstandingAgent(BaseAgent):
         "{benchmark_request}"
         
         Output JSON with a single key "categories" (list of strings).
+        IMPORTANT: "categories" MUST be a flat list of strings only (e.g., ["refund policy", "shipping policy"]).
+        Do NOT wrap categories in dictionaries or objects.
         """
         try:
             response = self.llm.generate_json(prompt, system_prompt="You are an expert RAG analyst. Extract categories in JSON format.")
             categories = response.get("categories", ["general", "specific"])
-            if not isinstance(categories, list):
-                categories = ["general", "specific"]
-            categories = [str(c).strip() for c in categories if c]
-            if not categories:
-                categories = ["general", "specific"]
+            categories = normalize_categories(categories, fallback=["general", "specific"])
             return categories
         except Exception as e:
             logger.error(f"Error extracting categories from request: {e}")

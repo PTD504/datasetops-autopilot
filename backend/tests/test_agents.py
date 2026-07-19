@@ -82,8 +82,135 @@ def test_agents():
     assert plan.goal == "Evaluate RAG system on test documents."
     assert plan.language == "English"
 
+    # Test Intake Planner Defensive Normalization - Case 1: list[dict]
+    original_generate_json = planner.llm.generate_json
+    try:
+        planner.llm.generate_json = lambda prompt, system_prompt=None: {
+            "goal": "Test dict categories",
+            "language": "English",
+            "sample_count": {"total": 5, "easy": 2, "medium": 2, "hard": 1},
+            "categories": [{"name": "refund policy", "coverage": "strong", "score": 0.9}],
+            "quality_rules": []
+        }
+        source_report_case1 = {
+            "coverage_by_category": {
+                "refund policy": {"coverage_level": "strong", "coverage_score": 0.9}
+            }
+        }
+        plan_case1 = planner.run("Make a test benchmark", summary, warnings, source_report=source_report_case1)
+        assert plan_case1.categories == ["refund policy"]
+        assert isinstance(plan_case1.categories[0], str)
+    finally:
+        planner.llm.generate_json = original_generate_json
+
+    # Test Intake Planner Defensive Normalization - Case 2: mixed str and dict
+    try:
+        planner.llm.generate_json = lambda prompt, system_prompt=None: {
+            "goal": "Test mixed categories",
+            "language": "English",
+            "sample_count": {"total": 5, "easy": 2, "medium": 2, "hard": 1},
+            "categories": ["refund policy", {"category": "shipping policy"}, {"title": "payment policy"}],
+            "quality_rules": []
+        }
+        source_report_case2 = {
+            "coverage_by_category": {
+                "refund policy": {"coverage_level": "strong", "coverage_score": 0.9},
+                "shipping policy": {"coverage_level": "weak", "coverage_score": 0.3},
+                "payment policy": {"coverage_level": "strong", "coverage_score": 0.8}
+            }
+        }
+        plan_case2 = planner.run("Make a test benchmark", summary, warnings, source_report=source_report_case2)
+        assert set(plan_case2.categories) == {"refund policy", "shipping policy", "payment policy"}
+    finally:
+        planner.llm.generate_json = original_generate_json
+
+    # Test Intake Planner Defensive Normalization - Case 3: invalid elements (None, int)
+    try:
+        planner.llm.generate_json = lambda prompt, system_prompt=None: {
+            "goal": "Test invalid categories",
+            "language": "English",
+            "sample_count": {"total": 5, "easy": 2, "medium": 2, "hard": 1},
+            "categories": [None, 123, "refund policy", {"name": 456}],
+            "quality_rules": []
+        }
+        source_report_case3 = {
+            "coverage_by_category": {
+                "refund policy": {"coverage_level": "strong", "coverage_score": 0.9}
+            }
+        }
+        plan_case3 = planner.run("Make a test benchmark", summary, warnings, source_report=source_report_case3)
+        assert plan_case3.categories == ["refund policy"]
+    finally:
+        planner.llm.generate_json = original_generate_json
+
     print("Agents test passed")
     db.close()
+
+def test_category_normalization(caplog):
+    import logging
+    from backend.agents.utils import normalize_categories
+
+    # Case 1: list[dict]
+    res1 = normalize_categories([{"name": "Refund", "score": 0.9}])
+    assert res1 == ["Refund"]
+
+    # Case 2: Mixed str and dict, preserving order
+    res2 = normalize_categories(["Refund", {"category": "Shipping"}, {"title": "Payment"}])
+    assert res2 == ["Refund", "Shipping", "Payment"]
+
+    # Case 3: Invalid elements (None, int)
+    res3 = normalize_categories([None, 123, "Refund", {"invalid": 456}])
+    assert res3 == ["Refund"]
+
+    # Case 4: Entirely empty after normalization -> fallback used and log warning called
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        res4 = normalize_categories([None, 123], fallback=["general", "specific"])
+        assert res4 == ["general", "specific"]
+        assert any("All categories were filtered out after normalization" in record.message for record in caplog.records)
+
+    # Verify SourceUnderstandingAgent's method calls normalize_categories
+    db = SessionLocal()
+    project_id = str(uuid.uuid4())
+    project = Project(id=project_id, name="Test", benchmark_request="Make a test benchmark")
+    db.add(project)
+    db.commit()
+
+    try:
+        source_agent = SourceUnderstandingAgent(db, project_id)
+        original_generate_json = source_agent.llm.generate_json
+        try:
+            # list[dict]
+            source_agent.llm.generate_json = lambda prompt, system_prompt=None: {
+                "categories": [{"name": "Refund"}]
+            }
+            res_su1 = source_agent._extract_categories_from_request("Request details")
+            assert res_su1 == ["Refund"]
+
+            # Mixed
+            source_agent.llm.generate_json = lambda prompt, system_prompt=None: {
+                "categories": ["Refund", {"category": "Shipping"}]
+            }
+            res_su2 = source_agent._extract_categories_from_request("Request details")
+            assert res_su2 == ["Refund", "Shipping"]
+
+            # Invalid
+            source_agent.llm.generate_json = lambda prompt, system_prompt=None: {
+                "categories": [None, 123, "Refund"]
+            }
+            res_su3 = source_agent._extract_categories_from_request("Request details")
+            assert res_su3 == ["Refund"]
+
+            # Fallback
+            source_agent.llm.generate_json = lambda prompt, system_prompt=None: {
+                "categories": [None, 123]
+            }
+            res_su4 = source_agent._extract_categories_from_request("Request details")
+            assert res_su4 == ["general", "specific"]
+        finally:
+            source_agent.llm.generate_json = original_generate_json
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     test_agents()
