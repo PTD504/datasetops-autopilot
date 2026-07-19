@@ -518,17 +518,17 @@ export function WorkflowTracePanel({
           ) : (
             rawTraces.map((trace, idx) => {
               let msg = trace.action
-              if (trace.action === "start_source_analysis") msg = "SourceUnderstandingAgent analyzing document coverage."
+              if (trace.action === "start_source_analysis") msg = "Source Understander analyzing document coverage."
               else if (trace.action === "source_analysis_complete") msg = "Source analysis complete."
-              else if (trace.action === "start_planning") msg = "IntakePlannerAgent creating benchmark plan."
+              else if (trace.action === "start_planning") msg = "Intake Planner creating benchmark plan."
               else if (trace.action === "plan_created") msg = "Benchmark plan created."
-              else if (trace.action === "start_generation_standard") msg = `BenchmarkGeneratorAgent generating ${trace.details?.count || 0} samples.`
-              else if (trace.action === "start_generation_repair") msg = `BenchmarkGeneratorAgent repairing ${trace.details?.count || 0} samples.`
+              else if (trace.action === "start_generation_standard") msg = `Benchmark Generator generating ${trace.details?.count || 0} samples.`
+              else if (trace.action === "start_generation_repair") msg = `Benchmark Generator repairing ${trace.details?.count || 0} samples.`
               else if (trace.action === "generation_standard_complete") msg = `Generated ${trace.details?.generated_count || 0} samples across types.`
               else if (trace.action === "generation_repair_complete") msg = `Repaired ${trace.details?.generated_count || 0} samples.`
-              else if (trace.action === "start_evaluation") msg = `QualityEvaluatorAgent evaluating sample.`
+              else if (trace.action === "start_evaluation") msg = `Quality Evaluator evaluating sample.`
               else if (trace.action === "evaluation_complete") msg = `Evaluation complete. Decision: ${trace.details?.decision}.`
-              else if (trace.action === "start_export") msg = "ExportReportAgent generating dataset_card.md and quality_report.md."
+              else if (trace.action === "start_export") msg = "Exporter generating dataset_card.md and quality_report.md."
               else if (trace.action === "export_complete") msg = `Export package ready. Included ${trace.details?.file_count || 0} files.`
 
               return (

@@ -14,8 +14,8 @@ export const AGENT_NODES: AgentNodeConfig[] = [
   },
   {
     id: "source_understanding",
-    role: "Source Understanding Analyst",
-    label: "Source Understanding",
+    role: "Source Understander Analyst",
+    label: "Source Understander",
     description: "Performs category coverage analysis and highlights document warnings.",
     pipelineOrder: 2,
     workflowStates: ["SOURCE_ANALYZING", "SOURCE_ANALYZED"],

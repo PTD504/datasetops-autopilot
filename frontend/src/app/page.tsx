@@ -110,8 +110,8 @@ export default function Home() {
               {/* Symmetrical stats section under Hero */}
               <div className="grid grid-cols-3 gap-6 pt-8 border-t border-white/[0.05] max-w-md mx-auto lg:mx-0">
                 <div>
-                  <div className="text-2xl font-extrabold text-white">100%</div>
-                  <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Automated Workflow</div>
+                  <div className="text-2xl font-extrabold text-white">2</div>
+                  <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">HITL Checkpoints</div>
                 </div>
                 <div className="border-x border-white/[0.06] px-4">
                   <div className="text-2xl font-extrabold text-indigo-400">&ge; 0.85</div>

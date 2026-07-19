@@ -197,28 +197,28 @@ export default function ControlHeader({
     switch (status) {
       case "CHUNKING":
       case "CHUNKED":
-        return "DocumentChunker";
+        return "Document Chunker";
       case "EMBEDDING":
-        return "VectorEmbedder";
+        return "Vector Embedder";
       case "SOURCE_ANALYZING":
       case "SOURCE_ANALYZED":
-        return "SourceUnderstandingAgent";
+        return "Source Understander";
       case "PLANNING":
       case "PLAN_READY":
       case "WAITING_FOR_PLAN_APPROVAL":
       case "PLAN_APPROVED":
-        return "IntakePlannerAgent";
+        return "Intake Planner";
       case "GENERATING":
       case "VALIDATING":
-        return "BenchmarkGeneratorAgent";
+        return "Benchmark Generator";
       case "EVALUATING":
       case "REPAIRING":
       case "WAITING_FOR_SAMPLE_REVIEW":
-        return "QualityEvaluatorAgent";
+        return "Quality Evaluator";
       case "EXPORTING":
       case "EXPORT_READY":
       case "DONE":
-        return "ExportReportAgent";
+        return "Exporter";
       default:
         return "Idle System";
     }

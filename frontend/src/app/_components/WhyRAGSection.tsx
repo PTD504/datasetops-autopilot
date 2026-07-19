@@ -65,11 +65,11 @@ export default function WhyRAGSection() {
                 {/* Metric 4 */}
                 <div className="space-y-1">
                   <div className="flex justify-between font-semibold text-slate-300">
-                    <span>Context Precision & Recall</span>
-                    <span className="text-slate-400 font-mono text-[10px]">Validated</span>
+                    <span>Overall Score</span>
+                    <span className="text-emerald-400 font-bold">&ge; 0.80</span>
                   </div>
                   <div className="w-full bg-slate-800/40 rounded-full h-1.5 overflow-hidden border border-white/[0.04]">
-                    <div className="bg-emerald-500 h-full rounded-full" style={{ width: "90%" }}></div>
+                    <div className="bg-emerald-500 h-full rounded-full" style={{ width: "80%" }}></div>
                   </div>
                 </div>
               </div>

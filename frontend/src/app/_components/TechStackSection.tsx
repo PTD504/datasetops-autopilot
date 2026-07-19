@@ -21,7 +21,7 @@ export default function TechStackSection() {
     {
       icon: Cpu,
       title: "Autonomous Generation",
-      desc: "Spins up parallel agents that draft custom single-hop, multi-hop, unanswerable, and edge-case question-answer pairs.",
+      desc: "Runs an autonomous generation agent that drafts custom single-hop, multi-hop, unanswerable, and edge-case question-answer pairs.",
       whyItMatters: "Replaces slow, error-prone manual scripting of test suites with high-speed autonomous generation.",
       benefit: "Delivers diverse, production-grade test cases covering all potential query pathways.",
       tag: "Generator Agent"
@@ -30,7 +30,7 @@ export default function TechStackSection() {
       icon: Shield,
       title: "Quality Evaluation & Repair",
       desc: "Audits every generated sample against strict metrics (Faithfulness, Relevance, Hallucination Risk) and auto-repairs failed entries.",
-      whyItMatters: "Guarantees zero-hallucination ground truth data without requiring human review for every line.",
+      whyItMatters: "Enforces strict hallucination-risk thresholds without requiring human review for every line.",
       benefit: "Maintains high benchmark integrity by recursively fixing incorrect references.",
       tag: "Evaluator Agent"
     },

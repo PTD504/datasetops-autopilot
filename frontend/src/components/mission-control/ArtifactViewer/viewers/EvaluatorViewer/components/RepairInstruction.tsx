@@ -49,7 +49,7 @@ function RepairInstruction({
             <Bot size={13} />
           </div>
           <div className="flex flex-col gap-1 text-left">
-            <span className="text-[8px] font-mono font-bold text-purple-400/80 uppercase">QualityEvaluatorAgent</span>
+            <span className="text-[8px] font-mono font-bold text-purple-400/80 uppercase">Quality Evaluator</span>
             <div className="bg-[#120a28]/60 border border-purple-500/10 p-3 rounded-2xl rounded-tl-none shadow-sm text-xs text-slate-300 leading-relaxed font-sans select-text">
               {instruction}
             </div>
@@ -69,7 +69,7 @@ function RepairInstruction({
             <Bot size={13} />
           </div>
           <div className="flex flex-col gap-1 text-right items-end">
-            <span className="text-[8px] font-mono font-bold text-indigo-400/80 uppercase">BenchmarkGeneratorAgent</span>
+            <span className="text-[8px] font-mono font-bold text-indigo-400/80 uppercase">Benchmark Generator</span>
             <div className="bg-[#05071a]/70 border border-indigo-500/10 p-3 rounded-2xl rounded-tr-none shadow-sm text-xs text-slate-350 leading-relaxed font-sans">
               {isResolved ? (
                 <div className="space-y-1">

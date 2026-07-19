@@ -39,7 +39,7 @@ export default function OverviewSection() {
             <div className="space-y-2">
               <h3 className="text-base font-bold text-white">Source Discovery</h3>
               <p className="text-xs text-slate-500 leading-relaxed font-normal">
-                Upload raw markdown, PDF, or text files. The <span className="text-slate-300 font-semibold font-mono">SourceUnderstandingAgent</span> runs hierarchical scans to build semantic topic categories and extract grounding facts.
+                Upload raw markdown, PDF, or text files. The <span className="text-slate-300 font-semibold font-mono">Source Understander</span> runs hierarchical scans to build semantic topic categories and extract grounding facts.
               </p>
             </div>
 
@@ -75,7 +75,7 @@ export default function OverviewSection() {
             <div className="space-y-2">
               <h3 className="text-base font-bold text-white flex items-center gap-1.5">Interactive Planning <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span></h3>
               <p className="text-xs text-slate-500 leading-relaxed font-normal">
-                The <span className="text-slate-300 font-semibold font-mono">IntakePlannerAgent</span> compiles slot allocations. <strong className="text-emerald-400">Human Plan Approval</strong> is required to validate the category targets and token budgets before generation starts.
+                The <span className="text-slate-300 font-semibold font-mono">Intake Planner</span> compiles slot allocations. <strong className="text-emerald-400">Human Plan Approval</strong> is required to validate the category targets and token budgets before generation starts.
               </p>
             </div>
 
@@ -118,7 +118,7 @@ export default function OverviewSection() {
             <div className="space-y-2">
               <h3 className="text-base font-bold text-white">Synthesis & Audit</h3>
               <p className="text-xs text-slate-500 leading-relaxed font-normal">
-                The <span className="text-slate-300 font-semibold font-mono">GeneratorAgent</span> drafts single/multi-hop QAs. The <span className="text-slate-300 font-semibold font-mono">QualityEvaluatorAgent</span> audits every sample against Faithfulness, Relevance, and Hallucination Risk metrics.
+                The <span className="text-slate-300 font-semibold font-mono">Generator</span> drafts single/multi-hop QAs. The <span className="text-slate-300 font-semibold font-mono">Quality Evaluator</span> audits every sample against Faithfulness, Relevance, and Hallucination Risk metrics.
               </p>
             </div>
 
@@ -149,7 +149,7 @@ export default function OverviewSection() {
             <div className="space-y-2">
               <h3 className="text-base font-bold text-white flex items-center gap-1.5">Repair & Export <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span></h3>
               <p className="text-xs text-slate-500 leading-relaxed font-normal">
-                If audits fail, the <span className="text-slate-300 font-semibold font-mono">NegotiationAgent</span> runs an automated <strong className="text-red-400">Generator ↔ Evaluator Repair Loop</strong>. The <span className="text-slate-300 font-semibold font-mono">ExporterAgent</span> packages all verified files.
+                If audits fail, a bounded <strong className="text-red-400">Generator ↔ Evaluator Repair Loop</strong> automatically retries failing samples. The <span className="text-slate-300 font-semibold font-mono">Exporter</span> packages all verified files.
               </p>
             </div>
 

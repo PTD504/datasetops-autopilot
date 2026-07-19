@@ -46,7 +46,7 @@ export default function PipelineSection() {
       borderColor: "group-hover:border-amber-500/30",
       glowColor: "rgba(245,158,11,0.15)",
       role: "Faithfulness & Grounding Audit",
-      details: "Evaluates candidate pairs against strict criteria: Faithfulness (>=0.85), Answer Relevance (>=0.75), and Hallucination Risk (<=0.25). Manages collaborative self-repair loops.",
+      details: "Evaluates candidate pairs against strict criteria: Faithfulness (>=0.85), Answer Relevance (>=0.75), and Hallucination Risk (<=0.25). Participates in a self-repair loop.",
       inputs: ["Candidate QA Pairs", "Source Context Chunks"],
       outputs: ["Evaluation Audit Report"]
     },

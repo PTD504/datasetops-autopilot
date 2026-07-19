@@ -20,9 +20,9 @@ const LOG_DATA = [
   },
   {
     step: 1,
-    agent: "SourceUnderstandingAgent",
+    agent: "Source Understander",
     logs: [
-      "[SOURCE] Source Scanner Agent activated.",
+      "[SOURCE] Source Scanner activated.",
       "[SOURCE] Reading semantic maps and scanning chunk content for high-density facts...",
       "[SOURCE] Extracted 42 core concepts and 115 relation tuples.",
       "[SOURCE] Mapped category coverage levels: Troubleshooting, Setup, Token Auth."
@@ -30,9 +30,9 @@ const LOG_DATA = [
   },
   {
     step: 2,
-    agent: "IntakePlannerAgent",
+    agent: "Intake Planner",
     logs: [
-      "[PLANNER] Intake Planner Agent activated.",
+      "[PLANNER] Intake Planner activated.",
       "[PLANNER] Analyzing category distributions. Formulating benchmark plan...",
       "[PLANNER] Blueprint generated. AWAITING HUMAN APPROVAL...",
       "[PLANNER] Human approval received. Commencing 40-slot generation."
@@ -40,9 +40,9 @@ const LOG_DATA = [
   },
   {
     step: 3,
-    agent: "GeneratorAgent",
+    agent: "Generator",
     logs: [
-      "[GENERATOR] Generator Agent activated. Accessing source chunks...",
+      "[GENERATOR] Generator activated. Accessing source chunks...",
       "[GENERATOR] Generating single-hop, multi-hop, unanswerable, and edge-case QA pairs...",
       "[GENERATOR] Grounding QA pairs strictly in document references...",
       "[GENERATOR] Candidate QA generation complete. 40 samples created."
@@ -50,9 +50,9 @@ const LOG_DATA = [
   },
   {
     step: 4,
-    agent: "QualityEvaluatorAgent",
+    agent: "Quality Evaluator",
     logs: [
-      "[EVALUATOR] Quality Evaluator Agent activated. Starting quality checks...",
+      "[EVALUATOR] Quality Evaluator activated. Starting quality checks...",
       "[EVALUATOR] Running multi-criteria quality check (Faithfulness, Relevance, Hallucination Risk)...",
       "[EVALUATOR] Audit mismatch: Hallucination detected in sample 18 (failed faithfulness).",
       "[EVALUATOR] Flagging sample 18 for repair."
@@ -60,19 +60,19 @@ const LOG_DATA = [
   },
   {
     step: 5,
-    agent: "NegotiationAgent",
+    agent: "RepairLoopAgent",
     logs: [
-      "[NEGOTIATOR] Negotiation Agent activated. Initiating Self-Repair Loop...",
-      "[NEGOTIATOR] Providing repair instructions to Generator Agent for sample 18...",
-      "[NEGOTIATOR] Regenerated sample 18. Evaluator audit: PASSED.",
-      "[NEGOTIATOR] Self-repair completed. All 40 samples verified."
+      "[REPAIR LOOP] Repair Loop activated. Initiating Self-Repair Loop...",
+      "[REPAIR LOOP] Providing repair instructions to Generator Agent for sample 18...",
+      "[REPAIR LOOP] Regenerated sample 18. Evaluator audit: PASSED.",
+      "[REPAIR LOOP] Self-repair completed. All 40 samples verified."
     ]
   },
   {
     step: 6,
-    agent: "ExporterAgent",
+    agent: "Exporter",
     logs: [
-      "[EXPORTER] Exporter Agent compiling output bundle...",
+      "[EXPORTER] Exporter compiling output bundle...",
       "[EXPORTER] Creating rag_eval.jsonl, answer_key.jsonl, dataset_card.md, quality_report.md...",
       "[EXPORTER] Packaging benchmark suite into ZIP package...",
       "[EXPORTER] Export ZIP ready. Autopilot session completed successfully."
@@ -91,12 +91,12 @@ export default function HeroWorkflowIllustration() {
 
   const steps = [
     { name: "Ingestion", icon: FolderOpen, agent: "System" },
-    { name: "Source Scanner", icon: Search, agent: "SourceUnderstandingAgent" },
-    { name: "Planner", icon: Brain, agent: "IntakePlannerAgent" },
-    { name: "Generator", icon: Sparkles, agent: "GeneratorAgent" },
-    { name: "Evaluator", icon: Scale, agent: "QualityEvaluatorAgent" },
-    { name: "Negotiation", icon: RefreshCw, agent: "NegotiationAgent" },
-    { name: "Exporter", icon: Download, agent: "ExporterAgent" }
+    { name: "Source Scanner", icon: Search, agent: "Source Understander" },
+    { name: "Planner", icon: Brain, agent: "Intake Planner" },
+    { name: "Generator", icon: Sparkles, agent: "Generator" },
+    { name: "Evaluator", icon: Scale, agent: "Quality Evaluator" },
+    { name: "Repair Loop", icon: RefreshCw, agent: "Repair Loop" },
+    { name: "Exporter", icon: Download, agent: "Exporter" }
   ]
 
   // Sequential progression timer

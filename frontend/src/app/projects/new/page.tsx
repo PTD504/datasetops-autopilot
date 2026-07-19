@@ -188,11 +188,11 @@ export default function NewProject() {
               </div>
                <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 font-mono text-[9px] text-slate-300">
                 {[
-                  { name: "SourceUnderstandingAgent", col: 1 },
-                  { name: "IntakePlannerAgent", col: 2 },
-                  { name: "BenchmarkGeneratorAgent", col: 1 },
-                  { name: "QualityEvaluatorAgent", col: 2 },
-                  { name: "ExporterAgent", col: 1 }
+                  { name: "Source Understander", col: 1 },
+                  { name: "Intake Planner", col: 2 },
+                  { name: "Benchmark Generator", col: 1 },
+                  { name: "Quality Evaluator", col: 2 },
+                  { name: "Exporter", col: 1 }
                 ].map((agent, i) => (
                   <div 
                     key={i} 
@@ -460,7 +460,7 @@ export default function NewProject() {
                   Autopilot Execution Lifecycle
                 </h4>
                 <p className="text-xs text-slate-500 max-w-xl mx-auto font-normal leading-relaxed">
-                  The sequence of autonomous stages executed from raw document ingestion to the finished benchmark bundle. The QualityEvaluatorAgent audits samples and routes feedback back to the Generator for iterative refinement.
+                  The sequence of autonomous stages executed from raw document ingestion to the finished benchmark bundle. The Quality Evaluator audits samples and routes feedback back to the Generator for iterative refinement.
                 </p>
               </div>
 
