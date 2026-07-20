@@ -1,136 +1,139 @@
 import json
 
-VIETNAMESE_BENCHMARK_SAMPLES = [
+ENGLISH_BENCHMARK_SAMPLES = [
     {
         "category": "refund policy",
         "difficulty": "easy",
         "sample_type": "single_hop",
-        "question": "Tôi có thể yêu cầu hoàn tiền trong bao lâu?",
-        "expected_answer": "Bạn có thể yêu cầu hoàn tiền toàn bộ trong vòng 14 ngày kể từ ngày nhận hàng nếu sản phẩm bị lỗi.",
+        "question": "How long do I have to request a refund?",
+        "expected_answer": "You can request a full refund within 14 days of receiving your item if the product is defective.",
         "source_chunk_ids": ["mock_chunk_refund_001"]
     },
     {
         "category": "refund policy",
         "difficulty": "medium",
         "sample_type": "single_hop",
-        "question": "Tôi sẽ mất bao nhiêu tiền phí nếu đổi ý và trả hàng?",
-        "expected_answer": "Nếu bạn đổi ý, bạn sẽ chịu phí hoàn trả 10% và phí vận chuyển sẽ không được hoàn lại.",
+        "question": "How much will I be charged if I change my mind and return an item?",
+        "expected_answer": "If you change your mind, you will be charged a 10% restocking fee and shipping fees will not be refunded.",
         "source_chunk_ids": ["mock_chunk_refund_002"]
     },
     {
         "category": "refund policy",
         "difficulty": "hard",
         "sample_type": "multi_hop",
-        "question": "Tôi có được hoàn lại phí vận chuyển nếu sản phẩm bị lỗi không?",
-        "expected_answer": "Chính sách chỉ đề cập hoàn tiền toàn bộ đối với sản phẩm lỗi và không hoàn phí vận chuyển nếu bạn đổi ý. Thường thì sản phẩm lỗi sẽ được hoàn trả toàn bộ, bao gồm cả phí vận chuyển, tuy nhiên tài liệu không ghi chi tiết về phí vận chuyển cho hàng lỗi.",
+        "question": "Will shipping fees be refunded if the product is defective?",
+        "expected_answer": "The policy specifies a full refund for defective products and no shipping refund for change-of-mind returns. Usually defective products receive full refunds including shipping, but the documentation does not state detailed shipping refund rules for defective items.",
         "source_chunk_ids": ["mock_chunk_refund_001", "mock_chunk_refund_002"]
     },
     {
         "category": "shipping policy",
         "difficulty": "easy",
         "sample_type": "single_hop",
-        "question": "Thời gian giao hàng tiêu chuẩn là bao lâu?",
-        "expected_answer": "Giao hàng tiêu chuẩn mất 3-5 ngày làm việc trong lãnh thổ Việt Nam.",
+        "question": "What is the standard delivery time?",
+        "expected_answer": "Standard shipping takes 3 to 5 business days.",
         "source_chunk_ids": ["mock_chunk_shipping_001"]
     },
     {
         "category": "shipping policy",
         "difficulty": "medium",
         "sample_type": "single_hop",
-        "question": "Làm thế nào để được miễn phí vận chuyển?",
-        "expected_answer": "Miễn phí vận chuyển áp dụng cho các đơn hàng có giá trị trên 500.000 VNĐ.",
+        "question": "How can I qualify for free shipping?",
+        "expected_answer": "Free shipping applies to orders with a total value over $50.",
         "source_chunk_ids": ["mock_chunk_shipping_003"]
     },
     {
         "category": "shipping policy",
         "difficulty": "hard",
         "sample_type": "unanswerable",
-        "question": "Nếu tôi ở Campuchia, tôi có thể đặt hàng được không?",
-        "expected_answer": "Không đủ thông tin trong tài liệu. Hiện tại không hỗ trợ giao hàng quốc tế, nên bạn không thể đặt hàng nếu ở Campuchia.",
+        "question": "Can I place an order if I live in Cambodia?",
+        "expected_answer": "Not enough information in the document. International shipping is currently not supported, so orders cannot be placed from Cambodia.",
         "source_chunk_ids": ["mock_chunk_shipping_004"]
     },
     {
         "category": "warranty",
         "difficulty": "easy",
         "sample_type": "single_hop",
-        "question": "Thời gian bảo hành cho đồ điện tử là bao lâu?",
-        "expected_answer": "Tất cả các sản phẩm điện tử đều được bảo hành 12 tháng kể từ ngày mua.",
+        "question": "How long is the warranty period for electronic products?",
+        "expected_answer": "All electronic products carry a 12-month warranty from the date of purchase.",
         "source_chunk_ids": ["mock_chunk_warranty_001"]
     },
     {
         "category": "warranty",
         "difficulty": "medium",
         "sample_type": "edge_case",
-        "question": "Bảo hành có áp dụng cho sản phẩm bị rơi vỡ không?",
-        "expected_answer": "Không, bảo hành không áp dụng đối với các trường hợp hư hỏng do người dùng như rơi rớt, vào nước hoặc sử dụng sai cách.",
+        "question": "Does the warranty cover damage caused by accidental drops?",
+        "expected_answer": "No, the warranty does not cover user-induced damage such as drops, liquid damage, or improper usage.",
         "source_chunk_ids": ["mock_chunk_warranty_002"]
     },
     {
         "category": "warranty",
         "difficulty": "hard",
         "sample_type": "unanswerable",
-        "question": "Nếu tôi mua hàng ở một nước khác và mang về Việt Nam, thì tôi có được bảo hành không?",
-        "expected_answer": "Không đủ thông tin trong tài liệu.",
+        "question": "If I purchase an item abroad and bring it back, is it eligible for warranty service?",
+        "expected_answer": "Not enough information in the document.",
         "source_chunk_ids": []
     },
     {
         "category": "order cancellation",
         "difficulty": "easy",
         "sample_type": "single_hop",
-        "question": "Tôi có thể hủy đơn hàng trước khi nó được giao không?",
-        "expected_answer": "Có, đơn hàng có thể bị hủy miễn phí trước khi chúng được giao cho đơn vị vận chuyển.",
+        "question": "Can I cancel my order before it gets shipped?",
+        "expected_answer": "Yes, orders can be canceled free of charge before they are handed over to the shipping carrier.",
         "source_chunk_ids": ["mock_chunk_cancellation_001"]
     },
     {
         "category": "order cancellation",
         "difficulty": "medium",
         "sample_type": "single_hop",
-        "question": "Làm sao để biết đơn hàng đã được giao cho đơn vị vận chuyển chưa?",
-        "expected_answer": "Bạn sẽ nhận được thông báo qua email hoặc trên ứng dụng khi đơn hàng bắt đầu được vận chuyển.",
+        "question": "How do I know if my order has been handed over to the carrier?",
+        "expected_answer": "You will receive an email or app notification once your order starts shipping.",
         "source_chunk_ids": ["mock_chunk_cancellation_002"]
     },
     {
         "category": "order cancellation",
         "difficulty": "hard",
         "sample_type": "multi_hop",
-        "question": "Nếu đơn hàng đã được vận chuyển nhưng tôi vẫn muốn hủy thì làm thế nào?",
-        "expected_answer": "Sau khi đơn hàng đã được giao cho đơn vị vận chuyển, bạn không thể hủy đơn hàng mà chỉ có thể xử lý dưới dạng yêu cầu trả hàng sau khi nhận hàng theo quy định hoàn trả.",
+        "question": "What should I do if the order is already shipped but I still want to cancel?",
+        "expected_answer": "Once the order is handed over to the shipping carrier, you cannot cancel it directly; you must process it as a return after receiving the package according to return regulations.",
         "source_chunk_ids": ["mock_chunk_cancellation_001", "mock_chunk_refund_001"]
     },
     {
         "category": "payment policy",
         "difficulty": "easy",
         "sample_type": "single_hop",
-        "question": "Cửa hàng chấp nhận những phương thức thanh toán nào?",
-        "expected_answer": "Chúng tôi chấp nhận thẻ tín dụng, chuyển khoản ngân hàng và thanh toán tiền mặt khi nhận hàng (COD).",
+        "question": "What payment methods does the store accept?",
+        "expected_answer": "We accept credit cards, bank transfers, and Cash on Delivery (COD).",
         "source_chunk_ids": ["mock_chunk_payment_001"]
     },
     {
         "category": "payment policy",
         "difficulty": "medium",
         "sample_type": "edge_case",
-        "question": "Thanh toán COD có bị giới hạn gì không?",
-        "expected_answer": "Thanh toán COD chỉ khả dụng cho các đơn hàng có giá trị dưới 5.000.000 VNĐ.",
+        "question": "Are there any restrictions on COD (Cash on Delivery) payments?",
+        "expected_answer": "Cash on Delivery (COD) payment is only available for orders valued under $200.",
         "source_chunk_ids": ["mock_chunk_payment_002"]
     },
     {
         "category": "payment policy",
         "difficulty": "hard",
         "sample_type": "multi_hop",
-        "question": "Nếu tôi thanh toán qua thẻ tín dụng và hủy đơn hàng trước khi giao, bao lâu thì nhận lại tiền?",
-        "expected_answer": "Đơn hàng sẽ được hủy miễn phí trước khi giao, và theo chính sách hoàn tiền, khoản hoàn trả sẽ được xử lý vào phương thức thanh toán ban đầu (thẻ tín dụng) trong vòng 5-7 ngày làm việc.",
+        "question": "If I pay via credit card and cancel before shipping, how long will it take to get a refund?",
+        "expected_answer": "Orders will be canceled free of charge before shipping, and per refund policy, the refund will be processed back to the original credit card payment method within 5-7 business days.",
         "source_chunk_ids": ["mock_chunk_payment_001", "mock_chunk_cancellation_001", "mock_chunk_refund_003"]
     }
 ]
 
-# We need 30 samples, let's duplicate the 15 to make 30, and modify slightly if needed.
-# Since this is a mock, duplicating is fine as long as there are 30.
+# Aliases for backward compatibility
+VIETNAMESE_BENCHMARK_SAMPLES = ENGLISH_BENCHMARK_SAMPLES
+MOCK_BENCHMARK_SAMPLES = ENGLISH_BENCHMARK_SAMPLES
+
+# 30 mock samples for full demo generation
 mock_30_samples = []
 for i in range(2):
-    for sample in VIETNAMESE_BENCHMARK_SAMPLES:
+    for sample in ENGLISH_BENCHMARK_SAMPLES:
         new_sample = sample.copy()
         if i == 1:
-            new_sample['question'] += " (Câu hỏi phụ)"
+            new_sample['question'] += " (Follow-up)"
         mock_30_samples.append(new_sample)
 
 MOCK_EVALUATION_LOW_SCORE = {

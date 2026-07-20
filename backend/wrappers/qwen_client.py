@@ -227,12 +227,12 @@ class QwenClient:
 
             if is_vietnamese_demo:
                 return {
-                    "goal": "Evaluate whether a customer support chatbot can answer refund, shipping, warranty, cancellation, and payment questions based on the Vietnamese ecommerce policy documents.",
-                    "language": "Vietnamese",
+                    "goal": "Evaluate whether a customer support chatbot can answer refund, shipping, warranty, cancellation, and payment questions based on policy documents.",
+                    "language": "English",
                     "sample_count": {"total": 30, "easy": 10, "medium": 10, "hard": 10},
                     "categories": ["refund policy", "shipping policy", "warranty", "order cancellation", "payment policy"],
-                    "quality_rules": ["Questions must be in natural Vietnamese.", quality_rules_mock[0]],
-                    "source_summary": "Vietnamese ecommerce policy documents covering refunds, shipping, warranty, cancellations, and payments.",
+                    "quality_rules": ["Questions must be clear and natural English.", quality_rules_mock[0]],
+                    "source_summary": "E-commerce policy documents covering refunds, shipping, warranty, cancellations, and payments.",
                     "source_warnings": []
                 }
             return {
@@ -257,7 +257,7 @@ class QwenClient:
                 # Trigger repair
                 from backend.wrappers.mock_data import MOCK_EVALUATION_LOW_SCORE
                 return MOCK_EVALUATION_LOW_SCORE.copy()
-            elif "hoàn tiền" in lower_prompt and "14 ngày" not in lower_prompt and not is_retry:
+            elif ("category: refund policy" in lower_prompt or "hoàn tiền" in lower_prompt) and ("14 days" not in lower_prompt and "14 ngày" not in lower_prompt) and not is_retry:
                  # Trigger repair once
                  return {
                     "faithfulness_score": 0.5,
@@ -274,7 +274,7 @@ class QwenClient:
                     "evaluator_notes": "Needs repair.",
                     "repair_instruction": "Include the 14-day time limit mentioned in the source."
                 }
-            elif is_edge_case and "campuchia" in lower_prompt:
+            elif is_edge_case and ("cambodia" in lower_prompt or "campuchia" in lower_prompt):
                 # Trigger human review
                  return {
                     "faithfulness_score": 0.8,
@@ -413,8 +413,8 @@ class QwenClient:
                 
                 # If we are repairing, reflect the change
                 if is_repair:
-                    if "hoàn tiền" in q_text.lower():
-                        ans_text = "Bạn có thể yêu cầu hoàn tiền toàn bộ trong vòng 14 ngày kể từ ngày nhận hàng nếu sản phẩm bị lỗi."
+                    if "refund" in q_text.lower() or "hoàn tiền" in q_text.lower():
+                        ans_text = "You can request a full refund within 14 days of receiving your item if the product is defective."
                     else:
                         q_text += " (Repaired)"
                         
