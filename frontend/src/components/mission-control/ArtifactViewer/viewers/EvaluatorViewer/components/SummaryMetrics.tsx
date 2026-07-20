@@ -41,7 +41,7 @@ function SummaryMetrics({ samples }: SummaryMetricsProps) {
         icon={<Sparkles size={12} className="text-emerald-400" />}
       />
       <Metric
-        label="Needs Repair (REPAIR)"
+        label="Needed Repair (REPAIR)"
         value={`${repairCount} Items`}
         icon={<RefreshCw size={12} className="text-purple-400" />}
       />

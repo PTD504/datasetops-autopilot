@@ -35,7 +35,8 @@ export default function GeneratorViewer({ projectId }: GeneratorViewerProps) {
     return samples.filter((sample) => {
       const matchesSearch =
         (sample.question || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (sample.expected_answer || "").toLowerCase().includes(searchQuery.toLowerCase());
+        (sample.expected_answer || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (sample.category || "").toLowerCase().includes(searchQuery.toLowerCase());
       const matchesDifficulty =
         selectedDifficulty === "all" ||
         (sample.difficulty || "").toLowerCase() === selectedDifficulty.toLowerCase();
@@ -123,7 +124,7 @@ export default function GeneratorViewer({ projectId }: GeneratorViewerProps) {
           <div className="flex flex-col sm:flex-row gap-3 border-b border-white/[0.04] pb-4 select-none">
             <input
               type="text"
-              placeholder="Search questions or expected answers..."
+              placeholder="Search questions, answers, or categories..."
               value={searchQuery}
               onChange={handleSearchChange}
               className="flex-1 bg-white/[0.02] border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 transition-all font-sans"

@@ -51,11 +51,8 @@ function WarningsSection({
       <div className="space-y-4">
         {/* Source Warnings (formatting, overlaps, indices) */}
         {hasSourceWarnings && (
-          <div className="space-y-2">
-            <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold">Quality & Structural Observations</span>
-            <div className="space-y-2 bg-amber-500/[0.01] border border-amber-500/10 p-3 rounded-xl">
-              {sourceWarningsList}
-            </div>
+          <div className="space-y-2 bg-amber-500/[0.01] border border-amber-500/10 p-3 rounded-xl">
+            {sourceWarningsList}
           </div>
         )}
       </div>

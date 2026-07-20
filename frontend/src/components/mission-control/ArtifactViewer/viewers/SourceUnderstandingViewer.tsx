@@ -78,7 +78,7 @@ function SourceUnderstandingViewer({
 
       {/* Main 2-column Analysis Report layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-        {/* Left Column: Summary, Insights & Recommendations */}
+        {/* Left Column: Summary & Insights */}
         <div className="flex flex-col gap-5">
           <SummarySection 
             documents={reportData.document_summaries}
@@ -92,19 +92,19 @@ function SourceUnderstandingViewer({
             collapsible={true}
             defaultExpanded={true}
           />
-          <RecommendationsSection 
-            recommendations={reportData.recommended_adjustments_to_plan}
-            collapsible={true}
-            defaultExpanded={true}
-          />
         </div>
 
-        {/* Right Column: Knowledge Coverage Audit */}
+        {/* Right Column: Knowledge Coverage Audit & Recommendations */}
         <div className="flex flex-col gap-5">
           <CoverageSection 
             strongSections={reportData.strong_sections}
             weakSections={reportData.weak_sections}
             unsupportedContent={reportData.unsupported_content}
+            collapsible={true}
+            defaultExpanded={true}
+          />
+          <RecommendationsSection 
+            recommendations={reportData.recommended_adjustments_to_plan}
             collapsible={true}
             defaultExpanded={true}
           />
