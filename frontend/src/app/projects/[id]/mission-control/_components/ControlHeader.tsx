@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { 
@@ -9,7 +10,9 @@ import {
   Clock,
   RotateCcw,
   Play,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  X
 } from "lucide-react";
 import { WorkflowStatus, TraceItem, WorkflowEvent } from "../../../../../components/mission-control/types";
 import { useMissionControlStore } from "../../../../../components/mission-control/store/useMissionControlStore";
@@ -51,10 +54,12 @@ export default function ControlHeader({
     "DONE"
   ];
 
+  const router = useRouter();
   const { isDownloaded } = useMissionControlStore();
   const derivedState = getWorkflowDerivedState(workflowStatus, projectId);
 
   const [elapsedText, setElapsedText] = React.useState("00m 00s");
+  const [showExitConfirm, setShowExitConfirm] = React.useState(false);
 
   React.useEffect(() => {
     if (!traces || traces.length === 0) {
@@ -284,12 +289,12 @@ export default function ControlHeader({
       {/* 1. Header Toolbar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/[0.04] pb-3">
         <div className="space-y-0.5">
-          <Link 
-            href={`/projects/${projectId}`}
-            className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-white transition-colors group"
+          <button 
+            onClick={() => setShowExitConfirm(true)}
+            className="inline-flex items-center gap-1 text-[10px] text-slate-500 hover:text-white transition-colors group cursor-pointer"
           >
-            <ArrowLeft size={10} className="transform group-hover:-translate-x-0.5 transition-transform" /> Back to Project Console
-          </Link>
+            <ArrowLeft size={10} className="transform group-hover:-translate-x-0.5 transition-transform" /> Back to Dataset Setup
+          </button>
           
           <div className="flex items-center gap-2.5">
             <h1 className="text-lg font-extrabold tracking-tight text-white">
@@ -390,6 +395,52 @@ export default function ControlHeader({
           </div>
         </div>
       </div>
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[100] bg-[#030014]/80 backdrop-blur-md flex items-center justify-center p-4 select-none animate-fade-in">
+          <div className="bg-gradient-to-b from-[#0e1130] to-[#080a21] border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.8)] rounded-2xl max-w-md w-full p-5 space-y-4 relative">
+            <button 
+              onClick={() => setShowExitConfirm(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+            
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 shrink-0 mt-0.5">
+                <AlertTriangle size={18} />
+              </div>
+              <div className="space-y-1 text-left">
+                <h3 className="text-sm font-bold text-white tracking-tight">
+                  Back to Dataset Setup Form?
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed font-sans">
+                  Are you sure you want to leave Mission Control and return to the Dataset setup form? Active agent processes will continue running in the background.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/[0.06]">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-white/5 border border-white/10 hover:bg-white/10 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowExitConfirm(false);
+                  router.push("/projects/new");
+                }}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-950 bg-indigo-400 hover:bg-indigo-350 transition-all cursor-pointer shadow-[0_0_15px_rgba(129,140,248,0.25)] active:scale-95"
+              >
+                Back to Setup Form
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

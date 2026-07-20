@@ -133,22 +133,43 @@ export default function ArtifactViewer({
     }
   }
 
-  // 2. Count LLM calls from tool calls of all matching runs
+  // 2. Count LLM calls from tool_call traces of all matching runs
   let llmCalls = 0;
   if (nodeRuns.length > 0) {
-    nodeRuns.forEach((run) => {
-      const apiCalls = run.tool_calls || [];
-      // Count tool calls starting with QwenClient or general API calls
-      let runLlmCalls = apiCalls.filter(
-        (tc) => tc.tool_name.toLowerCase().includes("qwen") || tc.tool_name.toLowerCase().includes("client")
-      ).length;
-      
-      // Fallback if tool_calls array isn't populated but output indicates completion
-      if (runLlmCalls === 0 && run.status === "completed") {
-        runLlmCalls = (nodeId === "preprocessing" || nodeId === "exporter") ? 0 : 1; // Non-LLM nodes get 0 calls
+    let searchNames: string[] = [];
+    if (nodeId === "preprocessing") {
+      searchNames = ["DocumentChunker", "VectorEmbedder"];
+    } else if (nodeId === "source_understanding") {
+      searchNames = ["SourceUnderstandingAgent"];
+    } else if (nodeId === "intake_planner") {
+      searchNames = ["IntakePlannerAgent"];
+    } else if (nodeId === "generator") {
+      searchNames = ["BenchmarkGeneratorAgent"];
+    } else if (nodeId === "evaluator") {
+      searchNames = ["QualityEvaluatorAgent"];
+    } else if (nodeId === "exporter") {
+      searchNames = ["ExportReportAgent"];
+    }
+
+    const runIds = new Set(nodeRuns.map((r) => r.id));
+
+    const toolCallTraces = traces.filter((t) => {
+      if (t.type !== "tool_call") return false;
+      const tcData = t.data as any;
+      if (tcData.agent_run_id && runIds.has(tcData.agent_run_id)) return true;
+      if (tcData.tool_name) {
+        const tName = tcData.tool_name.toLowerCase();
+        return searchNames.some((name) => tName.includes(name.toLowerCase()));
       }
-      llmCalls += runLlmCalls;
+      return false;
     });
+
+    llmCalls = toolCallTraces.length;
+
+    // Fallback if tool_call traces aren't populated but node runs completed
+    if (llmCalls === 0 && nodeRuns.some((r) => r.status === "completed")) {
+      llmCalls = (nodeId === "preprocessing" || nodeId === "exporter") ? 0 : nodeRuns.length;
+    }
   }
 
   // 3. Resolve badge variant matching status
