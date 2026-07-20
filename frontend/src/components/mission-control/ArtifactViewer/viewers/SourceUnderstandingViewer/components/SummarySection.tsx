@@ -54,26 +54,12 @@ function SummarySection({
         <div className="space-y-1.5">
           <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold">Parsed Source Materials</span>
           {hasDocuments ? (
-            <div className="space-y-2 max-h-32 overflow-y-auto pr-1 border border-white/[0.04] bg-white/[0.005] p-3 rounded-xl">
+            <div className="space-y-2 max-h-32 overflow-y-auto pr-1 border border-white/[0.04] bg-white/[0.005] p-3 rounded-xl themed-scrollbar">
               {documentList}
             </div>
           ) : (
             <div className="text-slate-500 italic text-xs border border-dashed border-white/5 bg-white/[0.005] p-3 rounded-xl">
               No scanned documents found.
-            </div>
-          )}
-        </div>
-
-        {/* Overall Analysis Statement */}
-        <div className="space-y-1.5">
-          <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold">AI Analysis Insights</span>
-          {overallSummary ? (
-            <p className="text-xs text-slate-300 leading-relaxed font-sans bg-white/[0.01] border border-white/[0.04] p-3.5 rounded-xl">
-              {overallSummary}
-            </p>
-          ) : (
-            <div className="text-slate-500 italic text-xs border border-dashed border-white/5 bg-white/[0.005] p-3.5 rounded-xl">
-              No summary analysis statement recorded.
             </div>
           )}
         </div>
@@ -93,6 +79,20 @@ function SummarySection({
               value={`${Math.round(confidenceScore * 100)}%`}
               icon={<Award size={12} className="text-purple-400" />}
             />
+          )}
+        </div>
+
+        {/* Overall Analysis Statement */}
+        <div className="space-y-1.5">
+          <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold">AI Analysis Insights</span>
+          {overallSummary ? (
+            <p className="text-xs text-slate-300 leading-relaxed font-sans bg-white/[0.01] border border-white/[0.04] p-3.5 rounded-xl">
+              {overallSummary}
+            </p>
+          ) : (
+            <div className="text-slate-500 italic text-xs border border-dashed border-white/5 bg-white/[0.005] p-3.5 rounded-xl">
+              No summary analysis statement recorded.
+            </div>
           )}
         </div>
       </div>

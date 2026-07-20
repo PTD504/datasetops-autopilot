@@ -9,7 +9,6 @@ import {
 import GoalSection from "./IntakePlannerViewer/components/GoalSection";
 import DatasetSection from "./IntakePlannerViewer/components/DatasetSection";
 import QualityRulesSection from "./IntakePlannerViewer/components/QualityRulesSection";
-import DecisionsSection from "./IntakePlannerViewer/components/DecisionsSection";
 import WarningsSection from "./IntakePlannerViewer/components/WarningsSection";
 import { useMissionControlStore } from "../../store/useMissionControlStore";
 
@@ -28,7 +27,6 @@ function IntakePlannerViewer({
 
   // Extract and resolve artifacts/run data from traces (memoized)
   const planData = useMemo(() => resolvePlanArtifact(traces), [traces]);
-  const adjustmentsData = useMemo(() => resolveAdjustmentsArtifact(traces), [traces]);
   const sourceReportData = useMemo(() => resolveSourceReportArtifact(traces), [traces]);
   const plannerRun = useMemo(() => resolvePlannerRun(traces), [traces]);
 
@@ -110,7 +108,7 @@ function IntakePlannerViewer({
 
       {/* Main 2-column Blueprint layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-        {/* Left Column: Scope, Dataset Distribution & Warnings */}
+        {/* Left Column: Scope & Dataset Distribution */}
         <div className="flex flex-col gap-5">
           <GoalSection 
             goal={goal} 
@@ -127,23 +125,17 @@ function IntakePlannerViewer({
             collapsible={true}
             defaultExpanded={true}
           />
-          <WarningsSection 
-            warningsConsidered={adjustmentsData?.warnings_considered}
-            warnings={planData.warnings}
-            collapsible={true}
-            defaultExpanded={true}
-          />
         </div>
 
-        {/* Right Column: Rules & Scoping Decisions */}
+        {/* Right Column: Rules & Warnings */}
         <div className="flex flex-col gap-5">
           <QualityRulesSection 
             rules={planData.quality_rules} 
             collapsible={true}
             defaultExpanded={true}
           />
-          <DecisionsSection 
-            adjustments={adjustmentsData?.planning_adjustments}
+          <WarningsSection 
+            warnings={planData.warnings}
             collapsible={true}
             defaultExpanded={true}
           />

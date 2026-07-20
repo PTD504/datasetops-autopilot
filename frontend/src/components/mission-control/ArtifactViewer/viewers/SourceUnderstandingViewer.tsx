@@ -41,17 +41,6 @@ function SourceUnderstandingViewer({
     if (!analysisRun) return undefined;
     return (analysisRun.output_json as any)?.summary || analysisRun.decision_summary || undefined;
   }, [analysisRun]);
-  
-  // Normalize run warnings to always be string[] or undefined
-  const runWarnings = useMemo(() => {
-    if (!analysisRun?.warnings) return undefined;
-    if (Array.isArray(analysisRun.warnings)) {
-      return analysisRun.warnings;
-    } else if (typeof analysisRun.warnings === "string") {
-      return [analysisRun.warnings];
-    }
-    return undefined;
-  }, [analysisRun]);
 
   // Renders empty/loading state if data is not yet resolved
   if (!reportData) {
@@ -89,7 +78,7 @@ function SourceUnderstandingViewer({
 
       {/* Main 2-column Analysis Report layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-        {/* Left Column: Summary & Knowledge Coverage */}
+        {/* Left Column: Summary, Insights & Recommendations */}
         <div className="flex flex-col gap-5">
           <SummarySection 
             documents={reportData.document_summaries}
@@ -98,25 +87,24 @@ function SourceUnderstandingViewer({
             collapsible={true}
             defaultExpanded={true}
           />
-          <CoverageSection 
-            strongSections={reportData.strong_sections}
-            weakSections={reportData.weak_sections}
-            unsupportedContent={reportData.unsupported_content}
-            collapsible={true}
-            defaultExpanded={true}
-          />
-        </div>
-
-        {/* Right Column: Insights & Recommendations */}
-        <div className="flex flex-col gap-5">
           <WarningsSection 
             sourceWarnings={reportData.source_warnings}
-            runWarnings={runWarnings}
             collapsible={true}
             defaultExpanded={true}
           />
           <RecommendationsSection 
             recommendations={reportData.recommended_adjustments_to_plan}
+            collapsible={true}
+            defaultExpanded={true}
+          />
+        </div>
+
+        {/* Right Column: Knowledge Coverage Audit */}
+        <div className="flex flex-col gap-5">
+          <CoverageSection 
+            strongSections={reportData.strong_sections}
+            weakSections={reportData.weak_sections}
+            unsupportedContent={reportData.unsupported_content}
             collapsible={true}
             defaultExpanded={true}
           />

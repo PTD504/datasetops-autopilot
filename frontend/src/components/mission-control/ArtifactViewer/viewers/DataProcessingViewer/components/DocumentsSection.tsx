@@ -59,7 +59,7 @@ function DocumentsSection({
         <span className="text-[10px] font-mono text-slate-500 uppercase font-semibold">Processed Files</span>
         
         {hasDocs ? (
-          <div className="space-y-2 border border-white/[0.04] bg-white/[0.005] p-3 rounded-xl max-h-52 overflow-y-auto pr-1">
+          <div className="space-y-2 border border-white/[0.04] bg-white/[0.005] p-3 rounded-xl max-h-52 overflow-y-auto pr-1 themed-scrollbar">
             {documentList}
           </div>
         ) : (
