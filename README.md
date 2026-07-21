@@ -6,7 +6,7 @@
 
 **Live Demo (Mock Mode):** [datasetops-autopilot.vercel.app](https://datasetops-autopilot.vercel.app/) *(Note: The deployed live demo is currently running in mock mode)*
 
-[![Demo Video](docs/assets/demo-thumbnail.png)](https://youtu.be/uy2q8OKJU14)
+[▶️ Watch Demo Video](https://youtu.be/C7sHht4G1Gk)
 
 ## Problem Statement
 Building high-quality RAG benchmarks requires strict grounding in real documents, which is manually exhausting and prone to inconsistencies. Furthermore, user requests are often ambiguous and must be structured prior to generation. This workflow automates the process to turn raw files and vague requirements into structured, reliable evaluation datasets.
