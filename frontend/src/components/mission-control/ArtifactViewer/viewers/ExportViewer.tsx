@@ -11,7 +11,8 @@ import {
 } from "./ExportViewer/utils/exportResolver";
 import FileList from "./ExportViewer/components/FileList";
 import PreviewPanel from "./ExportViewer/components/PreviewPanel";
-import { PlanData } from "../plan-review/BenchmarkPlanForm";
+import { PlanData } from "../../plan-review/BenchmarkPlanForm";
+import { EvaluatorSample } from "./EvaluatorViewer/useEvaluatorSamples";
 
 interface ExportViewerProps {
   projectId: string;
@@ -112,19 +113,19 @@ export default function ExportViewer({
     
     switch (selectedFile) {
       case "rag_eval.jsonl":
-        return reconstructRagEval(samples);
+        return reconstructRagEval(samples as unknown as EvaluatorSample[]);
       case "answer_key.jsonl":
-        return reconstructAnswerKey(samples);
+        return reconstructAnswerKey(samples as unknown as EvaluatorSample[]);
       case "dataset_card.md":
         return reconstructDatasetCard(
           projectName,
-          planData?.goal,
-          planData?.language,
-          planData?.categories,
-          samples
+          planData?.goal || "",
+          planData?.language || "",
+          planData?.categories || [],
+          samples as unknown as EvaluatorSample[]
         );
       case "quality_report.md":
-        return reconstructQualityReport(samples);
+        return reconstructQualityReport(samples as unknown as EvaluatorSample[]);
       default:
         return "";
     }
