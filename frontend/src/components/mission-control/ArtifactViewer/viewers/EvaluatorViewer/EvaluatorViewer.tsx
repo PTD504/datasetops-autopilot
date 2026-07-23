@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useMissionControlStore } from "../../../store/useMissionControlStore";
 import { useEvaluatorSamples, EvaluatorSample } from "./useEvaluatorSamples";
 import SummaryMetrics from "./components/SummaryMetrics";
@@ -35,27 +35,84 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
   const [isExporting, setIsExporting] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
+  // Helper to edit sample
+  const startEdit = useCallback((sample: EvaluatorSample) => {
+    setEditingSample(sample);
+    setEditQuestion(sample.question);
+    setEditAnswer(sample.expected_answer);
+    setEditCategory(sample.category);
+    setEditDifficulty(sample.difficulty);
+    setSaveError(null);
+  }, []);
+
+  // Helper to save edit
+  const handleSaveEdit = useCallback(async (sampleId: string, updatedFields: { question: string; expected_answer: string; category: string; difficulty: string }) => {
+    if (!updatedFields.question.trim() || !updatedFields.expected_answer.trim()) {
+      setSaveError("Question and Expected Answer cannot be empty.");
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const apiUrl = "";
+      const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sampleId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedFields),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setSamples((prev) =>
+          prev.map((s) =>
+            s.id === updated.id
+              ? {
+                  ...s,
+                  ...updated,
+                  question: updated.question,
+                  expected_answer: updated.expected_answer,
+                  category: updated.category,
+                  difficulty: updated.difficulty,
+                }
+              : s
+          )
+        );
+        setEditingSample(null);
+      } else {
+        const errData = await res.json();
+        setSaveError(errData.detail || "Failed to save sample changes.");
+      }
+    } catch (e) {
+      console.error(e);
+      setSaveError("Network error: Failed to save changes.");
+    } finally {
+      setSaving(false);
+    }
+  }, [projectId, setSamples]);
+
   // 1. Default filter: if WAITING_FOR_SAMPLE_REVIEW, show human_review only if there are pending reviews, otherwise show all
   const [hasInitializedFilter, setHasInitializedFilter] = useState(false);
 
   useEffect(() => {
     if (!loading && samples.length > 0 && !hasInitializedFilter) {
-      if (workflowStatus === "WAITING_FOR_SAMPLE_REVIEW") {
-        const hasPendingReview = samples.some(
-          (s) => s.decision === "human_review" &&
-                 s.status !== "APPROVED" &&
-                 s.status !== "PASS" &&
-                 s.status !== "REJECTED"
-        );
-        if (hasPendingReview) {
-          setSelectedDecision("human_review");
+      setTimeout(() => {
+        if (workflowStatus === "WAITING_FOR_SAMPLE_REVIEW") {
+          const hasPendingReview = samples.some(
+            (s) => s.decision === "human_review" &&
+                   s.status !== "APPROVED" &&
+                   s.status !== "PASS" &&
+                   s.status !== "REJECTED"
+          );
+          if (hasPendingReview) {
+            setSelectedDecision("human_review");
+          } else {
+            setSelectedDecision("all");
+          }
         } else {
           setSelectedDecision("all");
         }
-      } else {
-        setSelectedDecision("all");
-      }
-      setHasInitializedFilter(true);
+        setHasInitializedFilter(true);
+      }, 0);
     }
   }, [loading, samples, workflowStatus, hasInitializedFilter]);
 
@@ -91,7 +148,7 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [editingSample, editQuestion, editAnswer, editCategory, editDifficulty, saving]);
+  }, [editingSample, editQuestion, editAnswer, editCategory, editDifficulty, saving, handleSaveEdit]);
 
   // Filter samples based on search query and decision (memoized)
   const filteredSamples = useMemo(() => {
@@ -279,60 +336,7 @@ export default function EvaluatorViewer({ projectId, workflowStatus }: Evaluator
     }
   };
 
-  // Helper to edit sample
-  const startEdit = (sample: EvaluatorSample) => {
-    setEditingSample(sample);
-    setEditQuestion(sample.question);
-    setEditAnswer(sample.expected_answer);
-    setEditCategory(sample.category);
-    setEditDifficulty(sample.difficulty);
-    setSaveError(null);
-  };
-
-  // Helper to save edit
-  const handleSaveEdit = async (sampleId: string, updatedFields: { question: string; expected_answer: string; category: string; difficulty: string }) => {
-    if (!updatedFields.question.trim() || !updatedFields.expected_answer.trim()) {
-      setSaveError("Question and Expected Answer cannot be empty.");
-      return;
-    }
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const apiUrl = "";
-      const res = await fetch(`${apiUrl}/api/projects/${projectId}/samples/${sampleId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedFields),
-      });
-
-      if (res.ok) {
-        const updated = await res.json();
-        setSamples((prev) =>
-          prev.map((s) =>
-            s.id === updated.id
-              ? {
-                  ...s,
-                  ...updated,
-                  question: updated.question,
-                  expected_answer: updated.expected_answer,
-                  category: updated.category,
-                  difficulty: updated.difficulty,
-                }
-              : s
-          )
-        );
-        setEditingSample(null);
-      } else {
-        const errData = await res.json();
-        setSaveError(errData.detail || "Failed to save sample changes.");
-      }
-    } catch (e) {
-      console.error(e);
-      setSaveError("Network error: Failed to save changes.");
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Helpers moved to the top of the component
 
   // Final Approve and Export trigger
   const handleApproveAndExport = async () => {

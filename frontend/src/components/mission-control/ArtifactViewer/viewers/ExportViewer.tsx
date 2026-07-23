@@ -11,6 +11,7 @@ import {
 } from "./ExportViewer/utils/exportResolver";
 import FileList from "./ExportViewer/components/FileList";
 import PreviewPanel from "./ExportViewer/components/PreviewPanel";
+import { PlanData } from "../plan-review/BenchmarkPlanForm";
 
 interface ExportViewerProps {
   projectId: string;
@@ -37,7 +38,7 @@ export default function ExportViewer({
       ((t.data as AgentArtifact).artifact_type === "approved_benchmark_plan" ||
         (t.data as AgentArtifact).artifact_type === "benchmark_plan_draft")
   );
-  const planData = planArtifact ? (planArtifact.data as AgentArtifact).content_json : null;
+  const planData = planArtifact ? ((planArtifact.data as AgentArtifact).content_json as unknown as PlanData) : null;
 
   // 3. Extract project name from the start trace if available
   const startEvent = traces.find(
@@ -117,9 +118,9 @@ export default function ExportViewer({
       case "dataset_card.md":
         return reconstructDatasetCard(
           projectName,
-          (planData as any)?.goal,
-          (planData as any)?.language,
-          (planData as any)?.categories,
+          planData?.goal,
+          planData?.language,
+          planData?.categories,
           samples
         );
       case "quality_report.md":

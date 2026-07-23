@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { X, Cpu, CheckCircle2, AlertTriangle, Sparkles, RefreshCw } from "lucide-react";
 import { useMissionControlStore } from "../store/useMissionControlStore";
 import BenchmarkPlanForm, { PlanData } from "./BenchmarkPlanForm";
@@ -35,7 +35,7 @@ export default function PlanReviewDrawer({
     };
   }, []);
 
-  const fetchPlan = async () => {
+  const fetchPlan = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -53,11 +53,13 @@ export default function PlanReviewDrawer({
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
 
   useEffect(() => {
-    fetchPlan();
-  }, [projectId]);
+    setTimeout(() => {
+      fetchPlan();
+    }, 0);
+  }, [projectId, fetchPlan]);
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === backdropRef.current) {

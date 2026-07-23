@@ -1,4 +1,5 @@
 import { TraceItem, AgentArtifact } from "../../../../types";
+import { EvaluatorSample, EvidenceItem } from "../../EvaluatorViewer/useEvaluatorSamples";
 
 export interface ExportSummaryData {
   export_id: string;
@@ -20,7 +21,7 @@ export function resolveExportSummaryArtifact(traces: TraceItem[]): ExportSummary
   return (artifactItem.data as AgentArtifact).content_json as unknown as ExportSummaryData;
 }
 
-export function reconstructRagEval(samples: any[]): string {
+export function reconstructRagEval(samples: EvaluatorSample[]): string {
   const approvedSamples = samples.filter((s) => s.status?.toLowerCase() === "approved");
   return approvedSamples
     .map((s) =>
@@ -28,13 +29,13 @@ export function reconstructRagEval(samples: any[]): string {
         id: s.id,
         sample_type: s.sample_type,
         question: s.question,
-        source_chunk_ids: s.evidence?.map((e: any) => e.id) || [],
+        source_chunk_ids: s.evidence?.map((e: EvidenceItem) => e.id) || [],
       })
     )
     .join("\n");
 }
 
-export function reconstructAnswerKey(samples: any[]): string {
+export function reconstructAnswerKey(samples: EvaluatorSample[]): string {
   const approvedSamples = samples.filter((s) => s.status?.toLowerCase() === "approved");
   return approvedSamples
     .map((s) =>
@@ -51,7 +52,7 @@ export function reconstructDatasetCard(
   goal: string,
   language: string,
   categories: string[],
-  samples: any[]
+  samples: EvaluatorSample[]
 ): string {
   const approvedSamples = samples.filter((s) => s.status?.toLowerCase() === "approved");
   
@@ -96,7 +97,7 @@ Samples were evaluated using RAG-specific quality metrics including faithfulness
 `;
 }
 
-export function reconstructQualityReport(samples: any[]): string {
+export function reconstructQualityReport(samples: EvaluatorSample[]): string {
   const allSamples = samples;
   const passedSamples = allSamples.filter((s) => s.status?.toLowerCase() === "approved");
   const repairedSamples = allSamples.filter((s) => (s.retry_count || 0) > 0);

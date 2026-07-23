@@ -57,9 +57,9 @@ export function useEvaluatorSamples(projectId: string) {
         if (active) {
           if (data && data.length > 0) {
             // Map backend data to evaluator shape, applying defaults where missing
-            const mappedData: EvaluatorSample[] = data.map((s: any) => {
+            const mappedData: EvaluatorSample[] = data.map((s: Omit<Partial<EvaluatorSample>, "decision"> & { decision?: string | null }) => {
               // Map backend sample statuses to evaluator decisions if decision is missing
-              let decision: "pass" | "repair" | "human_review" | "reject" | null = s.decision;
+              let decision: "pass" | "repair" | "human_review" | "reject" | null = s.decision as "pass" | "repair" | "human_review" | "reject" | null;
               if (!decision) {
                 const stat = (s.status || "").toUpperCase();
                 if (stat === "APPROVED" || stat === "PASS") decision = "pass";
@@ -69,13 +69,13 @@ export function useEvaluatorSamples(projectId: string) {
               }
               
               return {
-                id: s.id,
+                id: s.id || "",
                 category: s.category || "General",
                 difficulty: s.difficulty || "medium",
                 sample_type: s.sample_type || "single_hop",
-                question: s.question,
-                expected_answer: s.expected_answer,
-                status: s.status,
+                question: s.question || "",
+                expected_answer: s.expected_answer || "",
+                status: s.status || "",
                 retry_count: s.retry_count || 0,
                 overall_score: s.overall_score !== undefined ? s.overall_score : null,
                 decision,
@@ -100,10 +100,11 @@ export function useEvaluatorSamples(projectId: string) {
           }
           setError(null);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to load evaluation samples:", err);
         if (active) {
-          setError(err.message || "Failed to load evaluation samples");
+          const message = err instanceof Error ? err.message : String(err);
+          setError(message || "Failed to load evaluation samples");
           setSamples([]);
         }
       } finally {

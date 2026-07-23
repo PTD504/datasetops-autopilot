@@ -5,7 +5,7 @@ import { AGENT_NODES } from "../config/agentConfig";
 import { GRAPH_LAYOUT, GRAPH_EDGES } from "../config/graphLayout";
 import WorkflowNode, { NodeUiStatus } from "./WorkflowNode";
 import WorkflowEdge from "./WorkflowEdge";
-import { WorkflowStatus, TraceItem } from "../types";
+import { WorkflowStatus, TraceItem, AgentRun, WorkflowEvent } from "../types";
 import { getWorkflowDerivedState } from "../workflowStateHelpers";
 
 interface DirectedWorkflowGraphProps {
@@ -27,24 +27,32 @@ export default function DirectedWorkflowGraph({
     setIsPlanReviewOpen
   } = useMissionControlStore();
 
-  const [hasEvaluated, setHasEvaluated] = React.useState(false);
+  const [dimensions, setDimensions] = React.useState({ width: 800, height: 380 });
 
   React.useEffect(() => {
-    if (hasEvaluated) return;
-    const hasEvalRun = traces.some(
-      (t) => t.type === "agent_run" && (t.data as any).agent_name === "QualityEvaluatorAgent"
-    );
-    if (hasEvalRun) {
-      setHasEvaluated(true);
-    }
-  }, [traces, hasEvaluated]);
+    if (!containerRef.current) return;
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setDimensions({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      }
+    });
+    resizeObserver.observe(containerRef.current);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  const hasEvaluated = traces.some(
+    (t) => t.type === "agent_run" && (t.data as AgentRun).agent_name === "QualityEvaluatorAgent"
+  );
 
   const agentRuns = traces.filter((t) => t.type === "agent_run");
   const latestAgentRun = agentRuns.length > 0 ? agentRuns[agentRuns.length - 1] : null;
 
   const getActiveAgentInCooperation = () => {
     if (latestAgentRun) {
-      return (latestAgentRun.data as any).agent_name;
+      return (latestAgentRun.data as AgentRun).agent_name;
     }
     return "BenchmarkGeneratorAgent"; // Fallback to Generator at start
   };
@@ -53,7 +61,7 @@ export default function DirectedWorkflowGraph({
 
   const getLastActiveNodeId = () => {
     if (latestAgentRun) {
-      const name = (latestAgentRun.data as any).agent_name || "";
+      const name = (latestAgentRun.data as AgentRun).agent_name || "";
       if (name.includes("Chunker") || name.includes("Embedder")) return "preprocessing";
       if (name.includes("SourceUnderstanding")) return "source_understanding";
       if (name.includes("IntakePlanner")) return "intake_planner";
@@ -67,7 +75,7 @@ export default function DirectedWorkflowGraph({
     if (workflowEvents.length > 0) {
       const nonFailedEvents = [...workflowEvents].reverse();
       for (const event of nonFailedEvents) {
-        const type = (event.data as any).event_type || "";
+        const type = (event.data as WorkflowEvent).event_type || "";
         if (type.includes("chunk") || type.includes("embed") || type.includes("preprocess")) return "preprocessing";
         if (type.includes("source")) return "source_understanding";
         if (type.includes("plan")) return "intake_planner";
@@ -254,10 +262,10 @@ export default function DirectedWorkflowGraph({
 
   // Smart popover positioning calculation
   const getPopoverPos = () => {
-    if (!selectedNodeId || !nodePositions[selectedNodeId] || !containerRef.current) return null;
+    if (!selectedNodeId || !nodePositions[selectedNodeId]) return null;
     const node = nodePositions[selectedNodeId];
-    const containerWidth = containerRef.current.clientWidth;
-    const containerHeight = containerRef.current.clientHeight;
+    const containerWidth = dimensions.width;
+    const containerHeight = dimensions.height;
 
     const popoverW = 280;
     const popoverH = 240;

@@ -20,6 +20,8 @@ export default function FileList({
   generatedAt,
   approvedCount,
 }: FileListProps) {
+  const { isDownloaded } = useMissionControlStore();
+
   const getFileIcon = (filename: string) => {
     const ext = filename.split(".").pop()?.toLowerCase();
     switch (ext) {
@@ -111,23 +113,17 @@ export default function FileList({
           })}
         </div>
 
-        {/* Download all package button */}
-        {(() => {
-          const { isDownloaded } = useMissionControlStore();
-          return (
-            <button
-              onClick={onDownloadAll}
-              className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold cursor-pointer transition-all active:scale-[0.98] select-none border ${
-                isDownloaded 
-                  ? "bg-emerald-500 text-slate-950 hover:bg-emerald-400 border-none shadow-[0_0_15px_rgba(16,185,129,0.25)]" 
-                  : "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 hover:border-emerald-500/50 text-emerald-400"
-              }`}
-            >
-              <Download size={14} />
-              <span>{isDownloaded ? "Export Completed" : "Download Package ZIP"}</span>
-            </button>
-          );
-        })()}
+        <button
+          onClick={onDownloadAll}
+          className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold cursor-pointer transition-all active:scale-[0.98] select-none border ${
+            isDownloaded 
+              ? "bg-emerald-500 text-slate-950 hover:bg-emerald-400 border-none shadow-[0_0_15px_rgba(16,185,129,0.25)]" 
+              : "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 hover:border-emerald-500/50 text-emerald-400"
+          }`}
+        >
+          <Download size={14} />
+          <span>{isDownloaded ? "Export Completed" : "Download Package ZIP"}</span>
+        </button>
       </div>
     </Section>
   );

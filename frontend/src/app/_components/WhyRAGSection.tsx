@@ -106,7 +106,7 @@ export default function WhyRAGSection() {
                 <div className="space-y-1.5 bg-white/[0.01] border border-white/[0.04] rounded-xl p-3 shadow-inner">
                   <span className="text-[9px] font-bold text-slate-500 font-mono uppercase">Source Context (cluster_config.md)</span>
                   <p className="text-slate-300 leading-relaxed font-sans">
-                    "...Auto-scaling thresholds are managed by the orchestrator daemon. The system scales up nodes automatically when average CPU utilization remains above 80% for a continuous period of 5 minutes."
+                    &quot;...Auto-scaling thresholds are managed by the orchestrator daemon. The system scales up nodes automatically when average CPU utilization remains above 80% for a continuous period of 5 minutes.&quot;
                   </p>
                 </div>
 

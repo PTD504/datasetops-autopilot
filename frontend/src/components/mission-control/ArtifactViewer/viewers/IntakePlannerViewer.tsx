@@ -37,8 +37,7 @@ function IntakePlannerViewer({
 
   // Derive goal from run output if missing from the plan artifact payload (memoized)
   const goal = useMemo(() => {
-    if (!planData) return undefined;
-    return (planData as any).goal || (plannerRun?.output_json as any)?.goal || undefined;
+    return planData?.goal || (plannerRun?.output_json?.goal as string | undefined) || undefined;
   }, [planData, plannerRun]);
 
   // Derive categories list (memoized)

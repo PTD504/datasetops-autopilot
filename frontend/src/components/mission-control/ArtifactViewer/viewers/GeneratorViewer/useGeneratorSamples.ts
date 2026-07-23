@@ -22,10 +22,11 @@ export function useGeneratorSamples(projectId: string) {
           setSamples(data || []);
           setError(null);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to load samples:", err);
         if (active) {
-          setError(err.message || "Failed to load samples");
+          const message = err instanceof Error ? err.message : String(err);
+          setError(message || "Failed to load samples");
           setSamples([]);
         }
       } finally {

@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   X
 } from "lucide-react";
-import { WorkflowStatus, TraceItem, WorkflowEvent } from "../../../../../components/mission-control/types";
+import { WorkflowStatus, TraceItem, WorkflowEvent, AgentRun } from "../../../../../components/mission-control/types";
 import { useMissionControlStore } from "../../../../../components/mission-control/store/useMissionControlStore";
 import { getWorkflowDerivedState } from "../../../../../components/mission-control/workflowStateHelpers";
 
@@ -63,7 +63,9 @@ export default function ControlHeader({
 
   React.useEffect(() => {
     if (!traces || traces.length === 0) {
-      setElapsedText("00m 00s");
+      setTimeout(() => {
+        setElapsedText("00m 00s");
+      }, 0);
       return;
     }
 
@@ -91,7 +93,9 @@ export default function ControlHeader({
 
     const startTime = new Date(parseUTCString(traces[0].timestamp)).getTime();
     if (isNaN(startTime)) {
-      setElapsedText("00m 00s");
+      setTimeout(() => {
+        setElapsedText("00m 00s");
+      }, 0);
       return;
     }
 
@@ -142,7 +146,7 @@ export default function ControlHeader({
       setElapsedText(formatElapsedTime(calculateActiveElapsedMs(workflowStatus)));
     };
 
-    updateElapsed();
+    setTimeout(updateElapsed, 0);
     const interval = setInterval(updateElapsed, 1000);
     return () => clearInterval(interval);
   }, [traces, workflowStatus, clockDrift]);
@@ -153,7 +157,7 @@ export default function ControlHeader({
     if (traces && traces.length > 0) {
       const agentRuns = traces.filter((t) => t.type === "agent_run");
       if (agentRuns.length > 0) {
-        const latestRun = agentRuns[agentRuns.length - 1].data as any;
+        const latestRun = agentRuns[agentRuns.length - 1].data as AgentRun;
         const name = latestRun.agent_name || "";
         if (name.includes("Chunker") || name.includes("Embedder")) return "EMBEDDING";
         if (name.includes("SourceUnderstanding")) return "SOURCE_ANALYZED";
@@ -167,7 +171,7 @@ export default function ControlHeader({
       if (workflowEvents.length > 0) {
         const nonFailedEvents = [...workflowEvents].reverse();
         for (const event of nonFailedEvents) {
-          const type = (event.data as any).event_type || "";
+          const type = (event.data as WorkflowEvent).event_type || "";
           if (type.includes("chunk")) return "CHUNKING";
           if (type.includes("embed")) return "EMBEDDING";
           if (type.includes("source")) return "SOURCE_ANALYZED";
@@ -285,7 +289,7 @@ export default function ControlHeader({
   }
 
   return (
-    <div className="w-full flex flex-col gap-3 relative z-10 shrink-0 select-none">
+    <div className={`w-full flex flex-col gap-3 relative shrink-0 select-none ${showExitConfirm ? "z-50" : "z-10"}`}>
       {/* 1. Header Toolbar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/[0.04] pb-3">
         <div className="space-y-0.5">

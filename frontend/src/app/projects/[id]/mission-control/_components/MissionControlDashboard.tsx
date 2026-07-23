@@ -17,7 +17,8 @@ import {
   TraceItem, 
   RawTraceItem, 
   UsageSummary,
-  AgentArtifact
+  AgentArtifact,
+  AgentRun
 } from "../../../../../components/mission-control/types";
 
 interface MissionControlDashboardProps {
@@ -70,8 +71,9 @@ export default function MissionControlDashboard({
     try {
       await onResumeWorkflow();
       setToast({ message: "Workflow resumed. Continuing execution...", type: "success" });
-    } catch (err: any) {
-      setToast({ message: err.message || "Failed to resume workflow.", type: "error" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setToast({ message: message || "Failed to resume workflow.", type: "error" });
     } finally {
       setIsResuming(false);
     }
@@ -94,7 +96,7 @@ export default function MissionControlDashboard({
         if (res.ok && active) {
           const data = await res.json();
           // Count samples that need human review (or are not approved)
-          const pendingCount = data.filter((s: any) => s.status === "HUMAN_REVIEW" || s.status === "NEEDS_REVIEW" || s.status === "PENDING").length;
+          const pendingCount = data.filter((s: { status: string }) => s.status === "HUMAN_REVIEW" || s.status === "NEEDS_REVIEW" || s.status === "PENDING").length;
           setSamplesCount(pendingCount > 0 ? pendingCount : (data.length > 0 ? data.length : 3));
         }
       } catch (e) {
@@ -169,7 +171,7 @@ export default function MissionControlDashboard({
   // Derive repair count based on traces
   const repairsCount = activeTraces
     .filter((t) => t.type === "agent_run")
-    .map((t) => t.data as any)
+    .map((t) => t.data as AgentRun)
     .filter((run) => run.agent_name === "BenchmarkGeneratorAgent" && run.input_summary?.toLowerCase().includes("repairing"))
     .length;
 

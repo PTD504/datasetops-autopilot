@@ -44,20 +44,21 @@ export default function BenchmarkPlanForm({
   // Validation state
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Initialize form state from plan prop
   useEffect(() => {
     if (plan) {
-      setGoal(plan.goal || "");
-      setLanguage(plan.language || "");
-      
-      const total = plan.sample_count?.total ?? 10;
-      setTotalSamples(total);
-      setEasySamples(plan.sample_count?.easy ?? 0);
-      setMediumSamples(plan.sample_count?.medium ?? 0);
-      setHardSamples(plan.sample_count?.hard ?? 0);
-      
-      setCategoriesText((plan.categories || []).join(", "));
-      setQualityRulesText((plan.quality_rules || []).join("\n"));
+      setTimeout(() => {
+        setGoal(plan.goal || "");
+        setLanguage(plan.language || "");
+        
+        const total = plan.sample_count?.total ?? 10;
+        setTotalSamples(total);
+        setEasySamples(plan.sample_count?.easy ?? 0);
+        setMediumSamples(plan.sample_count?.medium ?? 0);
+        setHardSamples(plan.sample_count?.hard ?? 0);
+        
+        setCategoriesText((plan.categories || []).join(", "));
+        setQualityRulesText((plan.quality_rules || []).join("\n"));
+      }, 0);
     }
   }, [plan]);
 

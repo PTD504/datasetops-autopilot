@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { X, Clock, Cpu, BarChart3, AlertCircle } from "lucide-react";
-import { WorkflowStatus, TraceItem, AgentRun, ToolCallLog } from "../types";
+import { WorkflowStatus, TraceItem, AgentRun, ToolCallLog, WorkflowEvent } from "../types";
 import { AGENT_NODES } from "../config/agentConfig";
 import Badge from "./components/Badge";
 import Metric from "./components/Metric";
@@ -104,14 +104,14 @@ export default function ArtifactViewer({
     const startEvents = traces.filter(
       (t) =>
         t.type === "workflow_event" &&
-        ((t.data as any).event_type === "chunking_started" ||
-          (t.data as any).event_type === "embedding_started")
+        ((t.data as WorkflowEvent).event_type === "chunking_started" ||
+          (t.data as WorkflowEvent).event_type === "embedding_started")
     );
     const endEvents = traces.filter(
       (t) =>
         t.type === "workflow_event" &&
-        ((t.data as any).event_type === "chunking_completed" ||
-          (t.data as any).event_type === "embedding_completed")
+        ((t.data as WorkflowEvent).event_type === "chunking_completed" ||
+          (t.data as WorkflowEvent).event_type === "embedding_completed")
     );
 
     if (startEvents.length > 0 && endEvents.length > 0) {
@@ -155,7 +155,7 @@ export default function ArtifactViewer({
 
     const toolCallTraces = traces.filter((t) => {
       if (t.type !== "tool_call") return false;
-      const tcData = t.data as any;
+      const tcData = t.data as ToolCallLog;
       if (tcData.agent_run_id && runIds.has(tcData.agent_run_id)) return true;
       if (tcData.tool_name) {
         const tName = tcData.tool_name.toLowerCase();
@@ -193,7 +193,7 @@ export default function ArtifactViewer({
   }
 
   // Dynamically resolve body viewer component from registry
-  const ViewerComponent = getViewerComponent(nodeId);
+  const viewerComponent = getViewerComponent(nodeId);
 
   return (
     <div
@@ -275,12 +275,12 @@ export default function ArtifactViewer({
         {/* Body Section */}
         <div className="flex-1 overflow-y-auto p-5 md:p-6 relative z-10 select-text custom-workspace-scroll">
           {latestRun || node.workflowStates.includes(workflowStatus) || nodeId === "preprocessing" ? (
-            ViewerComponent ? (
-              <ViewerComponent 
-                projectId={projectId}
-                workflowStatus={workflowStatus}
-                traces={traces}
-              />
+            viewerComponent ? (
+              React.createElement(viewerComponent, {
+                projectId,
+                workflowStatus,
+                traces,
+              })
             ) : (
               <EmptyState 
                 title="Viewer Not Implemented" 

@@ -36,10 +36,9 @@ function SourceUnderstandingViewer({
     );
   }, [workflowStatus, analysisRun]);
 
-  // Derive agent run output summary
   const overallSummary = useMemo(() => {
     if (!analysisRun) return undefined;
-    return (analysisRun.output_json as any)?.summary || analysisRun.decision_summary || undefined;
+    return (analysisRun.output_json?.summary as string | undefined) || analysisRun.decision_summary || undefined;
   }, [analysisRun]);
 
   // Renders empty/loading state if data is not yet resolved
