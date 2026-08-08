@@ -4,8 +4,6 @@
 
 **Track 4: Autopilot Agent — Global AI Hackathon Series with Qwen Cloud**
 
-**Live Demo (Mock Mode):** [datasetops-autopilot.vercel.app](https://datasetops-autopilot.vercel.app/) *(Note: The deployed live demo is currently running in mock mode)*
-
 [▶️ Watch Demo Video](https://youtu.be/C7sHht4G1Gk)
 
 ## Problem Statement
