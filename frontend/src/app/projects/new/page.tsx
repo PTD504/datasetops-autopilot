@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import BackendUnavailableModal from "@/components/BackendUnavailableModal"
 import { 
   AlertCircle, 
   ArrowLeft, 
@@ -35,6 +36,7 @@ export default function NewProject() {
   const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showBackendUnavailableModal, setShowBackendUnavailableModal] = useState(false)
   
   // Drag and drop states
   const [isDragging, setIsDragging] = useState(false)
@@ -91,6 +93,13 @@ export default function NewProject() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+
+    if (files.length === 0) {
+      setError("Upload at least one source document before starting.")
+      setLoading(false)
+      return
+    }
+
     try {
       const apiUrl = ""
       const res = await fetch(`${apiUrl}/api/projects`, {
@@ -101,12 +110,14 @@ export default function NewProject() {
           benchmark_request: request
         }),
       })
-      if (!res.ok) throw new Error("Failed to create project")
-      const data = await res.json()
 
-      if (files.length === 0) {
-        throw new Error("Upload at least one source document before starting.")
+      if (!res.ok) {
+        setShowBackendUnavailableModal(true)
+        setLoading(false)
+        return
       }
+
+      const data = await res.json()
 
       for (const file of files) {
         const formData = new FormData()
@@ -116,7 +127,9 @@ export default function NewProject() {
           body: formData,
         })
         if (!uploadRes.ok) {
-          throw new Error(`Failed to upload ${file.name}`)
+          setShowBackendUnavailableModal(true)
+          setLoading(false)
+          return
         }
       }
 
@@ -124,14 +137,15 @@ export default function NewProject() {
         method: "POST"
       })
       if (!startRes.ok) {
-        const error = await startRes.json().catch(() => null)
-        throw new Error(error?.detail || "Failed to start workflow")
+        setShowBackendUnavailableModal(true)
+        setLoading(false)
+        return
       }
 
       router.push(`/projects/${data.id}`)
     } catch (err) {
-      console.error(err)
-      setError(err instanceof Error ? err.message : "Error creating project")
+      console.error("Workflow submission failed (Backend unavailable):", err)
+      setShowBackendUnavailableModal(true)
     } finally {
       setLoading(false)
     }
@@ -595,6 +609,12 @@ export default function NewProject() {
         </form>
 
       </div>
+
+      {/* Backend Service Paused / Unavailable Modal */}
+      <BackendUnavailableModal 
+        isOpen={showBackendUnavailableModal} 
+        onClose={() => setShowBackendUnavailableModal(false)}
+      />
     </div>
   )
 }
